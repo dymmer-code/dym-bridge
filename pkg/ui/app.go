@@ -76,7 +76,7 @@ func (a *App) setupConnectedUI() {
 			}
 		}
 		if len(localPaths) > 0 {
-			a.explorer.UploadLocalFiles(localPaths)
+			a.explorer.UploadDroppedFiles(localPaths)
 		}
 	})
 
