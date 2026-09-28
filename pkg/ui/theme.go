@@ -56,17 +56,17 @@ func (t *DymBridgeTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVaria
 func (t *DymBridgeTheme) Size(name fyne.ThemeSizeName) float32 {
 	switch name {
 	case theme.SizeNameText:
-		return 13
+		return 11.5
 	case theme.SizeNamePadding:
-		return 6
+		return 3
 	case theme.SizeNameInnerPadding:
-		return 8
+		return 4
 	case theme.SizeNameInputRadius, theme.SizeNameSelectionRadius:
-		return 6
+		return 4
 	case theme.SizeNameHeadingText:
-		return 20
+		return 14
 	case theme.SizeNameSubHeadingText:
-		return 15
+		return 12
 	}
 	return t.Theme.Size(name)
 }

@@ -33,27 +33,25 @@ type ExplorerView struct {
 	btnDownload  *widget.Button
 
 	// --- Left Pane (Local) ---
-	localPath            string
-	localBreadcrumb      *BreadcrumbBar
-	localList            *FileListView
-	localInfo            *widget.Label
-	localSelectionDetail *widget.Label
-	localUpBtn           *widget.Button
-	localRefreshBtn      *widget.Button
-	localNewFolder       *widget.Button
-	localDeleteBtn       *widget.Button
+	localPath       string
+	localBreadcrumb *BreadcrumbBar
+	localList       *FileListView
+	localInfo       *widget.Label
+	localUpBtn      *widget.Button
+	localRefreshBtn *widget.Button
+	localNewFolder  *widget.Button
+	localDeleteBtn  *widget.Button
 
 	// --- Right Pane (Remote) ---
-	remotePath            string
-	remoteRoot            string
-	remoteBreadcrumb      *BreadcrumbBar
-	remoteList            *FileListView
-	remoteInfo            *widget.Label
-	remoteSelectionDetail *widget.Label
-	remoteUpBtn           *widget.Button
-	remoteRefreshBtn      *widget.Button
-	remoteNewFolder       *widget.Button
-	remoteDeleteBtn       *widget.Button
+	remotePath       string
+	remoteRoot       string
+	remoteBreadcrumb *BreadcrumbBar
+	remoteList       *FileListView
+	remoteInfo       *widget.Label
+	remoteUpBtn      *widget.Button
+	remoteRefreshBtn *widget.Button
+	remoteNewFolder  *widget.Button
+	remoteDeleteBtn  *widget.Button
 
 	splitContainer *container.Split
 	mainContainer  *fyne.Container
@@ -85,19 +83,19 @@ func (ev *ExplorerView) buildUI() {
 	ev.statusLabel = widget.NewLabel("Conectando con el servidor...")
 	ev.statusLabel.TextStyle = fyne.TextStyle{Bold: true}
 
-	ev.btnUpload = widget.NewButtonWithIcon("Subir a WordPress ➔", theme.UploadIcon(), func() {
+	ev.btnUpload = widget.NewButtonWithIcon("Subir ➔", theme.UploadIcon(), func() {
 		ev.TransferSelectedLocalToRemote()
 	})
 	ev.btnUpload.Importance = widget.HighImportance
 	ev.btnUpload.Disable()
 
-	ev.btnDownload = widget.NewButtonWithIcon("⬅ Descargar a Local", theme.DownloadIcon(), func() {
+	ev.btnDownload = widget.NewButtonWithIcon("⬅ Bajar", theme.DownloadIcon(), func() {
 		ev.TransferSelectedRemoteToLocal()
 	})
 	ev.btnDownload.Importance = widget.MediumImportance
 	ev.btnDownload.Disable()
 
-	ev.openAdminBtn = widget.NewButtonWithIcon("Abrir WordPress Admin", theme.NavigateNextIcon(), func() {
+	ev.openAdminBtn = widget.NewButtonWithIcon("WP Admin", theme.NavigateNextIcon(), func() {
 		ev.openWordPressAdmin()
 	})
 	ev.openAdminBtn.Importance = widget.HighImportance
@@ -152,20 +150,20 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 		ev.NavigateLocal(targetPath)
 	})
 
-	// Toolbar
-	ev.localUpBtn = widget.NewButtonWithIcon("Arriba", theme.MoveUpIcon(), func() {
+	// Toolbar (compact icons)
+	ev.localUpBtn = widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() {
 		parent := filepath.Dir(ev.localPath)
 		if parent != ev.localPath {
 			ev.NavigateLocal(parent)
 		}
 	})
-	ev.localRefreshBtn = widget.NewButtonWithIcon("Refrescar", theme.ViewRefreshIcon(), func() {
+	ev.localRefreshBtn = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		ev.RefreshLocal()
 	})
-	ev.localNewFolder = widget.NewButtonWithIcon("Carpeta", theme.FolderNewIcon(), func() {
+	ev.localNewFolder = widget.NewButtonWithIcon("", theme.FolderNewIcon(), func() {
 		ev.promptNewLocalFolder()
 	})
-	ev.localDeleteBtn = widget.NewButtonWithIcon("Borrar", theme.DeleteIcon(), func() {
+	ev.localDeleteBtn = widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
 		item := ev.localList.SelectedItem()
 		if item != nil {
 			ev.promptDeleteLocal(*item)
@@ -180,17 +178,12 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 		ev.localDeleteBtn,
 	)
 
-	ev.localSelectionDetail = widget.NewLabel("")
-	ev.localSelectionDetail.Truncation = fyne.TextTruncateEllipsis
-	ev.localSelectionDetail.Importance = widget.LowImportance
-
 	// File List
 	ev.localList = NewFileListView(
 		func(folderPath string) {
 			ev.NavigateLocal(folderPath)
 		},
 		func(item sftp.Item) {
-			// Double click local file -> upload to current remote directory!
 			ev.uploadLocalItem(item)
 		},
 		func(item *sftp.Item) {
@@ -198,36 +191,31 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 				ev.btnUpload.Enable()
 				ev.localDeleteBtn.Enable()
 				if item.IsDir {
-					ev.localSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📁 %s", item.Name))
+					ev.localInfo.SetText(fmt.Sprintf("📁 %s", item.Name))
 				} else {
-					ev.localSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
+					ev.localInfo.SetText(fmt.Sprintf("📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
 				}
 			} else {
 				ev.btnUpload.Disable()
 				ev.localDeleteBtn.Disable()
-				ev.localSelectionDetail.SetText("")
 			}
 		},
 	)
 
 	ev.localInfo = widget.NewLabel("0 elementos")
+	ev.localInfo.Truncation = fyne.TextTruncateEllipsis
 	ev.localInfo.Importance = widget.LowImportance
 
+	subHeader := container.NewBorder(nil, nil, localToolbar, nil, ev.localBreadcrumb.Container())
 	header := container.NewVBox(
 		container.NewBorder(nil, nil, title, jumpRow),
-		ev.localBreadcrumb.Container(),
-		localToolbar,
+		subHeader,
 		widget.NewSeparator(),
-	)
-
-	footer := container.NewVBox(
-		ev.localSelectionDetail,
-		ev.localInfo,
 	)
 
 	return container.NewBorder(
 		header,
-		footer,
+		ev.localInfo,
 		nil, nil,
 		ev.localList.Widget(),
 	)
@@ -260,20 +248,20 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 		ev.NavigateRemote(targetPath)
 	})
 
-	// Toolbar
-	ev.remoteUpBtn = widget.NewButtonWithIcon("Arriba", theme.MoveUpIcon(), func() {
+	// Toolbar (compact icons)
+	ev.remoteUpBtn = widget.NewButtonWithIcon("", theme.MoveUpIcon(), func() {
 		parent := path.Dir(ev.remotePath)
 		if parent != ev.remotePath {
 			ev.NavigateRemote(parent)
 		}
 	})
-	ev.remoteRefreshBtn = widget.NewButtonWithIcon("Refrescar", theme.ViewRefreshIcon(), func() {
+	ev.remoteRefreshBtn = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		ev.RefreshRemote()
 	})
-	ev.remoteNewFolder = widget.NewButtonWithIcon("Carpeta", theme.FolderNewIcon(), func() {
+	ev.remoteNewFolder = widget.NewButtonWithIcon("", theme.FolderNewIcon(), func() {
 		ev.promptNewRemoteFolder()
 	})
-	ev.remoteDeleteBtn = widget.NewButtonWithIcon("Borrar", theme.DeleteIcon(), func() {
+	ev.remoteDeleteBtn = widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
 		item := ev.remoteList.SelectedItem()
 		if item != nil {
 			ev.promptDeleteRemote(*item)
@@ -288,17 +276,12 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 		ev.remoteDeleteBtn,
 	)
 
-	ev.remoteSelectionDetail = widget.NewLabel("")
-	ev.remoteSelectionDetail.Truncation = fyne.TextTruncateEllipsis
-	ev.remoteSelectionDetail.Importance = widget.LowImportance
-
 	// File List
 	ev.remoteList = NewFileListView(
 		func(folderPath string) {
 			ev.NavigateRemote(folderPath)
 		},
 		func(item sftp.Item) {
-			// Double click remote file -> download to current local directory!
 			ev.downloadRemoteItem(item)
 		},
 		func(item *sftp.Item) {
@@ -306,36 +289,31 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 				ev.btnDownload.Enable()
 				ev.remoteDeleteBtn.Enable()
 				if item.IsDir {
-					ev.remoteSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📁 %s", item.Name))
+					ev.remoteInfo.SetText(fmt.Sprintf("📁 %s", item.Name))
 				} else {
-					ev.remoteSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
+					ev.remoteInfo.SetText(fmt.Sprintf("📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
 				}
 			} else {
 				ev.btnDownload.Disable()
 				ev.remoteDeleteBtn.Disable()
-				ev.remoteSelectionDetail.SetText("")
 			}
 		},
 	)
 
 	ev.remoteInfo = widget.NewLabel("0 elementos")
+	ev.remoteInfo.Truncation = fyne.TextTruncateEllipsis
 	ev.remoteInfo.Importance = widget.LowImportance
 
+	subHeader := container.NewBorder(nil, nil, remoteToolbar, nil, ev.remoteBreadcrumb.Container())
 	header := container.NewVBox(
 		container.NewBorder(nil, nil, title, jumpRow),
-		ev.remoteBreadcrumb.Container(),
-		remoteToolbar,
+		subHeader,
 		widget.NewSeparator(),
-	)
-
-	footer := container.NewVBox(
-		ev.remoteSelectionDetail,
-		ev.remoteInfo,
 	)
 
 	return container.NewBorder(
 		header,
-		footer,
+		ev.remoteInfo,
 		nil, nil,
 		ev.remoteList.Widget(),
 	)

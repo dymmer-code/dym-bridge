@@ -38,7 +38,7 @@ func NewApp(cfg *config.Config) *App {
 
 	w := a.NewWindow("dym-bridge — WordPress Manager")
 	w.SetIcon(iconRes)
-	w.Resize(fyne.NewSize(1024, 680))
+	w.Resize(fyne.NewSize(680, 480))
 
 	tm := tunnel.NewManager(cfg)
 
