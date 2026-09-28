@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"path"
 	"strings"
 	"sync"
@@ -13,16 +14,7 @@ import (
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 )
 
-// FileItemRow represents the visual template for a single row in the file list.
-type FileItemRow struct {
-	Container *fyne.Container
-	Icon      *widget.Icon
-	NameLabel *widget.Label
-	SizeLabel *widget.Label
-	DateLabel *widget.Label
-}
-
-// FileListView manages the virtualized list of files and folders.
+// FileListView manages the virtualized list of files and folders in a space-efficient 2-line layout.
 type FileListView struct {
 	list        *widget.List
 	items       []sftp.Item
@@ -55,25 +47,17 @@ func NewFileListView(onOpenFolder func(path string), onFileAction func(item sftp
 		},
 		func() fyne.CanvasObject {
 			icon := widget.NewIcon(theme.FileIcon())
-			nameLabel := widget.NewLabel("sample_file.txt")
+
+			nameLabel := widget.NewLabel("sample_file_name.txt")
 			nameLabel.Truncation = fyne.TextTruncateEllipsis
+			nameLabel.Wrapping = fyne.TextTruncate
 
-			sizeLabel := widget.NewLabel("100 KB")
-			sizeLabel.Alignment = fyne.TextAlignTrailing
-			sizeLabel.TextStyle = fyne.TextStyle{Monospace: true}
+			metaLabel := widget.NewLabel("0 B • 2026-09-28 00:00")
+			metaLabel.Importance = widget.LowImportance
 
-			dateLabel := widget.NewLabel("2026-09-28 00:00")
-			dateLabel.Alignment = fyne.TextAlignTrailing
-			dateLabel.Importance = widget.LowImportance
+			textVBox := container.NewVBox(nameLabel, metaLabel)
 
-			// Layout: Icon + Name (expanding) on left, Size + Date on right
-			leftBox := container.NewBorder(nil, nil, icon, nil, nameLabel)
-			rightBox := container.NewHBox(
-				container.NewGridWrap(fyne.NewSize(90, 24), sizeLabel),
-				container.NewGridWrap(fyne.NewSize(140, 24), dateLabel),
-			)
-
-			return container.NewBorder(nil, nil, nil, rightBox, leftBox)
+			return container.NewBorder(nil, nil, icon, nil, textVBox)
 		},
 		func(id widget.ListItemID, obj fyne.CanvasObject) {
 			flv.mu.RLock()
@@ -85,29 +69,23 @@ func NewFileListView(onOpenFolder func(path string), onFileAction func(item sftp
 			flv.mu.RUnlock()
 
 			border := obj.(*fyne.Container)
-			leftBox := border.Objects[0].(*fyne.Container)
-			icon := leftBox.Objects[1].(*widget.Icon)
-			nameLabel := leftBox.Objects[0].(*widget.Label)
+			icon := border.Objects[1].(*widget.Icon)
+			textVBox := border.Objects[0].(*fyne.Container)
+			nameLabel := textVBox.Objects[0].(*widget.Label)
+			metaLabel := textVBox.Objects[1].(*widget.Label)
 
-			rightBox := border.Objects[1].(*fyne.Container)
-			sizeGrid := rightBox.Objects[0].(*fyne.Container)
-			sizeLabel := sizeGrid.Objects[0].(*widget.Label)
-			dateGrid := rightBox.Objects[1].(*fyne.Container)
-			dateLabel := dateGrid.Objects[0].(*widget.Label)
-
-			// Icon & Typography
+			// Icon & Formatting
 			if item.IsDir {
 				icon.SetResource(theme.FolderIcon())
 				nameLabel.TextStyle = fyne.TextStyle{Bold: true}
-				sizeLabel.SetText("—")
+				metaLabel.SetText(fmt.Sprintf("Carpeta  •  %s", item.ModTime.Format("2006-01-02 15:04")))
 			} else {
 				icon.SetResource(getFileTypeIcon(item.Name))
 				nameLabel.TextStyle = fyne.TextStyle{Bold: false}
-				sizeLabel.SetText(sftp.FormatFileSize(item.Size))
+				metaLabel.SetText(fmt.Sprintf("%s  •  %s", sftp.FormatFileSize(item.Size), item.ModTime.Format("2006-01-02 15:04")))
 			}
 
 			nameLabel.SetText(item.Name)
-			dateLabel.SetText(item.ModTime.Format("2006-01-02 15:04"))
 		},
 	)
 

@@ -33,25 +33,27 @@ type ExplorerView struct {
 	btnDownload  *widget.Button
 
 	// --- Left Pane (Local) ---
-	localPath       string
-	localBreadcrumb *BreadcrumbBar
-	localList       *FileListView
-	localInfo       *widget.Label
-	localUpBtn      *widget.Button
-	localRefreshBtn *widget.Button
-	localNewFolder  *widget.Button
-	localDeleteBtn  *widget.Button
+	localPath            string
+	localBreadcrumb      *BreadcrumbBar
+	localList            *FileListView
+	localInfo            *widget.Label
+	localSelectionDetail *widget.Label
+	localUpBtn           *widget.Button
+	localRefreshBtn      *widget.Button
+	localNewFolder       *widget.Button
+	localDeleteBtn       *widget.Button
 
 	// --- Right Pane (Remote) ---
-	remotePath       string
-	remoteRoot       string
-	remoteBreadcrumb *BreadcrumbBar
-	remoteList       *FileListView
-	remoteInfo       *widget.Label
-	remoteUpBtn      *widget.Button
-	remoteRefreshBtn *widget.Button
-	remoteNewFolder  *widget.Button
-	remoteDeleteBtn  *widget.Button
+	remotePath            string
+	remoteRoot            string
+	remoteBreadcrumb      *BreadcrumbBar
+	remoteList            *FileListView
+	remoteInfo            *widget.Label
+	remoteSelectionDetail *widget.Label
+	remoteUpBtn           *widget.Button
+	remoteRefreshBtn      *widget.Button
+	remoteNewFolder       *widget.Button
+	remoteDeleteBtn       *widget.Button
 
 	splitContainer *container.Split
 	mainContainer  *fyne.Container
@@ -146,7 +148,7 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 	jumpRow := container.NewHScroll(container.NewHBox(jumpButtons...))
 
 	// Breadcrumb
-	ev.localBreadcrumb = NewBreadcrumbBar(ev.localPath, func(targetPath string) {
+	ev.localBreadcrumb = NewBreadcrumbBar(ev.window, ev.localPath, func(targetPath string) {
 		ev.NavigateLocal(targetPath)
 	})
 
@@ -178,6 +180,10 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 		ev.localDeleteBtn,
 	)
 
+	ev.localSelectionDetail = widget.NewLabel("")
+	ev.localSelectionDetail.Truncation = fyne.TextTruncateEllipsis
+	ev.localSelectionDetail.Importance = widget.LowImportance
+
 	// File List
 	ev.localList = NewFileListView(
 		func(folderPath string) {
@@ -191,9 +197,15 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 			if item != nil {
 				ev.btnUpload.Enable()
 				ev.localDeleteBtn.Enable()
+				if item.IsDir {
+					ev.localSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📁 %s", item.Name))
+				} else {
+					ev.localSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
+				}
 			} else {
 				ev.btnUpload.Disable()
 				ev.localDeleteBtn.Disable()
+				ev.localSelectionDetail.SetText("")
 			}
 		},
 	)
@@ -203,13 +215,19 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 
 	header := container.NewVBox(
 		container.NewBorder(nil, nil, title, jumpRow),
-		container.NewBorder(nil, nil, localToolbar, nil, ev.localBreadcrumb.Container()),
+		ev.localBreadcrumb.Container(),
+		localToolbar,
 		widget.NewSeparator(),
+	)
+
+	footer := container.NewVBox(
+		ev.localSelectionDetail,
+		ev.localInfo,
 	)
 
 	return container.NewBorder(
 		header,
-		container.NewBorder(nil, nil, ev.localInfo, nil),
+		footer,
 		nil, nil,
 		ev.localList.Widget(),
 	)
@@ -238,7 +256,7 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 	jumpRow := container.NewHBox(btnUploads, btnThemes, btnPlugins)
 
 	// Breadcrumb
-	ev.remoteBreadcrumb = NewBreadcrumbBar(ev.remotePath, func(targetPath string) {
+	ev.remoteBreadcrumb = NewBreadcrumbBar(ev.window, ev.remotePath, func(targetPath string) {
 		ev.NavigateRemote(targetPath)
 	})
 
@@ -270,6 +288,10 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 		ev.remoteDeleteBtn,
 	)
 
+	ev.remoteSelectionDetail = widget.NewLabel("")
+	ev.remoteSelectionDetail.Truncation = fyne.TextTruncateEllipsis
+	ev.remoteSelectionDetail.Importance = widget.LowImportance
+
 	// File List
 	ev.remoteList = NewFileListView(
 		func(folderPath string) {
@@ -283,9 +305,15 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 			if item != nil {
 				ev.btnDownload.Enable()
 				ev.remoteDeleteBtn.Enable()
+				if item.IsDir {
+					ev.remoteSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📁 %s", item.Name))
+				} else {
+					ev.remoteSelectionDetail.SetText(fmt.Sprintf("Seleccionado: 📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
+				}
 			} else {
 				ev.btnDownload.Disable()
 				ev.remoteDeleteBtn.Disable()
+				ev.remoteSelectionDetail.SetText("")
 			}
 		},
 	)
@@ -295,13 +323,19 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 
 	header := container.NewVBox(
 		container.NewBorder(nil, nil, title, jumpRow),
-		container.NewBorder(nil, nil, remoteToolbar, nil, ev.remoteBreadcrumb.Container()),
+		ev.remoteBreadcrumb.Container(),
+		remoteToolbar,
 		widget.NewSeparator(),
+	)
+
+	footer := container.NewVBox(
+		ev.remoteSelectionDetail,
+		ev.remoteInfo,
 	)
 
 	return container.NewBorder(
 		header,
-		container.NewBorder(nil, nil, ev.remoteInfo, nil),
+		footer,
 		nil, nil,
 		ev.remoteList.Widget(),
 	)
