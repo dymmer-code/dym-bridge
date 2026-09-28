@@ -1,0 +1,19 @@
+# Binarios y compilados
+bin/
+*.exe
+*.dmg
+*.app/
+*.o
+*.a
+*.so
+
+# Configuración con credenciales reales
+dym-bridge.ini
+*.lock
+id_rsa
+id_ed25519
+*.pem
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

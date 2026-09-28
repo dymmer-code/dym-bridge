@@ -1,0 +1,40 @@
+# dym-bridge.ini - Configuración de conexión cliente WordPress
+#
+# Coloque este archivo en la misma carpeta que el ejecutable de dym-bridge.
+# Las rutas relativas de clave privada se resolverán respecto a la ubicación de este archivo.
+
+[ssh]
+# Dirección o IP del servidor SSH
+host = ssh.ejemplo.com
+
+# Puerto SSH (por defecto 22)
+port = 22
+
+# Usuario del servidor SSH / SFTP
+user = cliente_wp
+
+# Autenticación: ruta a la clave privada (relativa o absoluta)
+key_file = id_ed25519
+
+# Si la clave privada tiene contraseña, descomente:
+# passphrase = mi_contraseña_de_clave
+
+# Alternativamente, si usa contraseña directa en lugar de clave:
+# password = SecretoDelCliente
+
+[wordpress]
+# Dominio configurado en WordPress (necesario para la cabecera Host HTTP y evitar redirecciones)
+host_header = cliente.com
+
+# Puerto en el servidor remoto donde escucha WordPress en localhost (por defecto 80)
+remote_port = 80
+
+# Puerto local donde se expondrá el túnel (por defecto 8080)
+local_port = 8080
+
+# Ruta del panel de administración
+admin_path = /wp-admin/
+
+[sftp]
+# Directorio remoto inicial en el servidor
+remote_path = /var/www/html/wp-content
