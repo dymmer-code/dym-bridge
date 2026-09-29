@@ -21,7 +21,7 @@ type SSHConnection struct {
 func ConnectSSH(cfg *config.SSHConfig) (*SSHConnection, error) {
 	authMethods, err := buildAuthMethods(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("error de autenticación SSH: %w", err)
+		return nil, fmt.Errorf("SSH authentication error: %w", err)
 	}
 
 	clientConfig := &ssh.ClientConfig{
@@ -34,7 +34,7 @@ func ConnectSSH(cfg *config.SSHConfig) (*SSHConnection, error) {
 	addr := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
 	client, err := ssh.Dial("tcp", addr, clientConfig)
 	if err != nil {
-		return nil, fmt.Errorf("no se pudo conectar al servidor SSH en %s: %w", addr, err)
+		return nil, fmt.Errorf("failed to connect to SSH server at %s: %w", addr, err)
 	}
 
 	conn := &SSHConnection{
@@ -55,7 +55,7 @@ func buildAuthMethods(cfg *config.SSHConfig) ([]ssh.AuthMethod, error) {
 	if cfg.KeyFile != "" {
 		keyBytes, err := os.ReadFile(cfg.KeyFile)
 		if err != nil {
-			return nil, fmt.Errorf("no se pudo leer el archivo de clave privada %q: %w", cfg.KeyFile, err)
+			return nil, fmt.Errorf("failed to read private key file %q: %w", cfg.KeyFile, err)
 		}
 
 		var signer ssh.Signer
@@ -66,7 +66,7 @@ func buildAuthMethods(cfg *config.SSHConfig) ([]ssh.AuthMethod, error) {
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("formato de clave privada no válido en %q: %w", cfg.KeyFile, err)
+			return nil, fmt.Errorf("invalid private key format in %q: %w", cfg.KeyFile, err)
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
 	}
@@ -76,7 +76,7 @@ func buildAuthMethods(cfg *config.SSHConfig) ([]ssh.AuthMethod, error) {
 	}
 
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("no se configuró ningún método de autenticación válido")
+		return nil, fmt.Errorf("no valid authentication method configured")
 	}
 
 	return methods, nil
@@ -85,7 +85,7 @@ func buildAuthMethods(cfg *config.SSHConfig) ([]ssh.AuthMethod, error) {
 // Dial dials a network address on the remote host via the SSH client.
 func (c *SSHConnection) Dial(network, addr string) (net.Conn, error) {
 	if c.client == nil {
-		return nil, fmt.Errorf("conexión SSH no establecida")
+		return nil, fmt.Errorf("SSH connection not established")
 	}
 	return c.client.Dial(network, addr)
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -25,33 +26,37 @@ type ExplorerView struct {
 	sftpClient *sftp.Client
 	mu         sync.Mutex
 
-	// Top status & global actions
-	statusDot    *widget.Icon
-	statusLabel  *widget.Label
-	openAdminBtn *widget.Button
-	btnUpload    *widget.Button
-	btnDownload  *widget.Button
+	// Top actions & global status
+	openAdminBtn    *widget.Button
+	btnUpload       *widget.Button
+	btnDownload     *widget.Button
+	globalStatusBar *widget.Label
 
 	// --- Left Pane (Local) ---
-	localPath       string
-	localBreadcrumb *BreadcrumbBar
-	localList       *FileListView
-	localInfo       *widget.Label
-	localUpBtn      *widget.Button
-	localRefreshBtn *widget.Button
-	localNewFolder  *widget.Button
-	localDeleteBtn  *widget.Button
+	localPath         string
+	localBreadcrumb   *BreadcrumbBar
+	localList         *FileListView
+	localInfo         *widget.Label
+	localUpBtn        *widget.Button
+	localRefreshBtn   *widget.Button
+	localSelectAllBtn *widget.Button
+	localNewFolder    *widget.Button
+	localDeleteBtn    *widget.Button
+	localItemsCount   int
 
 	// --- Right Pane (Remote) ---
-	remotePath       string
-	remoteRoot       string
-	remoteBreadcrumb *BreadcrumbBar
-	remoteList       *FileListView
-	remoteInfo       *widget.Label
-	remoteUpBtn      *widget.Button
-	remoteRefreshBtn *widget.Button
-	remoteNewFolder  *widget.Button
-	remoteDeleteBtn  *widget.Button
+	remotePath         string
+	remoteRoot         string
+	remoteBreadcrumb   *BreadcrumbBar
+	remoteList         *FileListView
+	remoteInfo         *widget.Label
+	remoteUpBtn        *widget.Button
+	remoteRefreshBtn   *widget.Button
+	remoteSelectAllBtn *widget.Button
+	remoteNewFolder    *widget.Button
+	remoteDeleteBtn    *widget.Button
+	remoteTitleLabel   *widget.Label
+	remoteItemsCount   int
 
 	splitContainer *container.Split
 	mainContainer  *fyne.Container
@@ -60,7 +65,7 @@ type ExplorerView struct {
 // NewExplorerView creates and initializes the dual-pane explorer.
 func NewExplorerView(window fyne.Window, tm *tunnel.Manager, initialRemotePath string) *ExplorerView {
 	if initialRemotePath == "" {
-		initialRemotePath = "/var/www/html/wp-content"
+		initialRemotePath = "/var/www/wordpress"
 	}
 	initialLocalPath := local.DefaultLocalDir()
 
@@ -79,23 +84,19 @@ func NewExplorerView(window fyne.Window, tm *tunnel.Manager, initialRemotePath s
 
 func (ev *ExplorerView) buildUI() {
 	// 1. Top Global Bar
-	ev.statusDot = widget.NewIcon(theme.MediaStopIcon())
-	ev.statusLabel = widget.NewLabel("Conectando con el servidor...")
-	ev.statusLabel.TextStyle = fyne.TextStyle{Bold: true}
-
-	ev.btnUpload = widget.NewButtonWithIcon("Subir ➔", theme.UploadIcon(), func() {
+	ev.btnUpload = widget.NewButtonWithIcon("Upload", theme.UploadIcon(), func() {
 		ev.TransferSelectedLocalToRemote()
 	})
 	ev.btnUpload.Importance = widget.HighImportance
 	ev.btnUpload.Disable()
 
-	ev.btnDownload = widget.NewButtonWithIcon("⬅ Bajar", theme.DownloadIcon(), func() {
+	ev.btnDownload = widget.NewButtonWithIcon("Download", theme.DownloadIcon(), func() {
 		ev.TransferSelectedRemoteToLocal()
 	})
 	ev.btnDownload.Importance = widget.MediumImportance
 	ev.btnDownload.Disable()
 
-	ev.openAdminBtn = widget.NewButtonWithIcon("WP Admin", theme.NavigateNextIcon(), func() {
+	ev.openAdminBtn = widget.NewButtonWithIcon("Web Admin", theme.NavigateNextIcon(), func() {
 		ev.openWordPressAdmin()
 	})
 	ev.openAdminBtn.Importance = widget.HighImportance
@@ -105,7 +106,7 @@ func (ev *ExplorerView) buildUI() {
 
 	topBar := container.NewBorder(
 		nil, nil,
-		container.NewHBox(ev.statusDot, ev.statusLabel),
+		nil,
 		container.NewHBox(transferControls, widget.NewSeparator(), ev.openAdminBtn),
 	)
 
@@ -119,31 +120,25 @@ func (ev *ExplorerView) buildUI() {
 	ev.splitContainer = container.NewHSplit(leftPane, rightPane)
 	ev.splitContainer.SetOffset(0.5)
 
-	// 5. Master Layout
+	// 5. Global Bottom Status Bar (for error and info messages with ellipsis)
+	ev.globalStatusBar = widget.NewLabel("")
+	ev.globalStatusBar.Truncation = fyne.TextTruncateEllipsis
+	ev.globalStatusBar.Importance = widget.LowImportance
+
+	// 6. Master Layout
 	ev.mainContainer = container.NewBorder(
 		container.NewVBox(topBar, widget.NewSeparator()),
-		nil,
+		container.NewVBox(widget.NewSeparator(), ev.globalStatusBar),
 		nil, nil,
 		ev.splitContainer,
 	)
 }
 
 func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
-	title := widget.NewLabel("💻 Mi Equipo (Local)")
-	title.TextStyle = fyne.TextStyle{Bold: true}
-
-	// Quick jump buttons for local
-	commonDirs := local.CommonDirectories()
-	var jumpButtons []fyne.CanvasObject
-	for label, dirPath := range commonDirs {
-		p := dirPath
-		btn := widget.NewButton(label, func() {
-			ev.NavigateLocal(p)
-		})
-		btn.Importance = widget.LowImportance
-		jumpButtons = append(jumpButtons, btn)
-	}
-	jumpRow := container.NewHScroll(container.NewHBox(jumpButtons...))
+	titleIcon := widget.NewIcon(PCIcon())
+	titleLabel := widget.NewLabel("Local")
+	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+	titleBox := container.NewHBox(titleIcon, titleLabel)
 
 	// Breadcrumb
 	ev.localBreadcrumb = NewBreadcrumbBar(ev.window, ev.localPath, func(targetPath string) {
@@ -160,20 +155,23 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 	ev.localRefreshBtn = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		ev.RefreshLocal()
 	})
+	ev.localSelectAllBtn = widget.NewButtonWithIcon("", theme.CheckButtonCheckedIcon(), func() {
+		ev.localList.ToggleSelectAll()
+	})
+	ev.localSelectAllBtn.Importance = widget.LowImportance
+
 	ev.localNewFolder = widget.NewButtonWithIcon("", theme.FolderNewIcon(), func() {
 		ev.promptNewLocalFolder()
 	})
 	ev.localDeleteBtn = widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
-		item := ev.localList.SelectedItem()
-		if item != nil {
-			ev.promptDeleteLocal(*item)
-		}
+		ev.promptDeleteLocal()
 	})
 	ev.localDeleteBtn.Disable()
 
 	localToolbar := container.NewHBox(
 		ev.localUpBtn,
 		ev.localRefreshBtn,
+		ev.localSelectAllBtn,
 		ev.localNewFolder,
 		ev.localDeleteBtn,
 	)
@@ -184,31 +182,35 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 			ev.NavigateLocal(folderPath)
 		},
 		func(item sftp.Item) {
-			ev.uploadLocalItem(item)
+			ev.uploadItems([]sftp.Item{item})
 		},
-		func(item *sftp.Item) {
-			if item != nil {
-				ev.btnUpload.Enable()
-				ev.localDeleteBtn.Enable()
-				if item.IsDir {
-					ev.localInfo.SetText(fmt.Sprintf("📁 %s", item.Name))
+		func(selected []sftp.Item) {
+			count := len(selected)
+			if count > 0 {
+				if ev.tunnelMgr != nil && ev.tunnelMgr.State() == tunnel.StateConnected {
+					ev.btnUpload.Enable()
 				} else {
-					ev.localInfo.SetText(fmt.Sprintf("📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
+					ev.btnUpload.Disable()
 				}
+				ev.btnUpload.SetText(fmt.Sprintf("Upload (%d)", count))
+				ev.localDeleteBtn.Enable()
+				ev.localInfo.SetText(fmt.Sprintf("%d items (%d selected)", ev.localItemsCount, count))
 			} else {
 				ev.btnUpload.Disable()
+				ev.btnUpload.SetText("Upload")
 				ev.localDeleteBtn.Disable()
+				ev.localInfo.SetText(fmt.Sprintf("%d items", ev.localItemsCount))
 			}
 		},
 	)
 
-	ev.localInfo = widget.NewLabel("0 elementos")
+	ev.localInfo = widget.NewLabel("0 items")
 	ev.localInfo.Truncation = fyne.TextTruncateEllipsis
 	ev.localInfo.Importance = widget.LowImportance
 
 	subHeader := container.NewBorder(nil, nil, localToolbar, nil, ev.localBreadcrumb.Container())
 	header := container.NewVBox(
-		container.NewBorder(nil, nil, title, jumpRow),
+		titleBox,
 		subHeader,
 		widget.NewSeparator(),
 	)
@@ -222,26 +224,15 @@ func (ev *ExplorerView) buildLocalPane() fyne.CanvasObject {
 }
 
 func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
-	title := widget.NewLabel("☁️ Servidor WordPress (Remoto)")
-	title.TextStyle = fyne.TextStyle{Bold: true}
+	hostName := "Remote"
+	if ev.tunnelMgr != nil && ev.tunnelMgr.Config() != nil && strings.TrimSpace(ev.tunnelMgr.Config().SSH.Host) != "" {
+		hostName = strings.TrimSpace(ev.tunnelMgr.Config().SSH.Host)
+	}
 
-	// Quick jump buttons for WordPress
-	btnUploads := widget.NewButton("uploads", func() {
-		ev.NavigateRemote(path.Join(ev.remoteRoot, "uploads"))
-	})
-	btnUploads.Importance = widget.LowImportance
-
-	btnThemes := widget.NewButton("themes", func() {
-		ev.NavigateRemote(path.Join(ev.remoteRoot, "themes"))
-	})
-	btnThemes.Importance = widget.LowImportance
-
-	btnPlugins := widget.NewButton("plugins", func() {
-		ev.NavigateRemote(path.Join(ev.remoteRoot, "plugins"))
-	})
-	btnPlugins.Importance = widget.LowImportance
-
-	jumpRow := container.NewHBox(btnUploads, btnThemes, btnPlugins)
+	titleIcon := widget.NewIcon(ServerIcon())
+	ev.remoteTitleLabel = widget.NewLabel(hostName)
+	ev.remoteTitleLabel.TextStyle = fyne.TextStyle{Bold: true}
+	titleBox := container.NewHBox(titleIcon, ev.remoteTitleLabel)
 
 	// Breadcrumb
 	ev.remoteBreadcrumb = NewBreadcrumbBar(ev.window, ev.remotePath, func(targetPath string) {
@@ -255,23 +246,33 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 			ev.NavigateRemote(parent)
 		}
 	})
+	ev.remoteUpBtn.Disable()
+
 	ev.remoteRefreshBtn = widget.NewButtonWithIcon("", theme.ViewRefreshIcon(), func() {
 		ev.RefreshRemote()
 	})
+	ev.remoteRefreshBtn.Disable()
+
+	ev.remoteSelectAllBtn = widget.NewButtonWithIcon("", theme.CheckButtonCheckedIcon(), func() {
+		ev.remoteList.ToggleSelectAll()
+	})
+	ev.remoteSelectAllBtn.Importance = widget.LowImportance
+	ev.remoteSelectAllBtn.Disable()
+
 	ev.remoteNewFolder = widget.NewButtonWithIcon("", theme.FolderNewIcon(), func() {
 		ev.promptNewRemoteFolder()
 	})
+	ev.remoteNewFolder.Disable()
+
 	ev.remoteDeleteBtn = widget.NewButtonWithIcon("", theme.DeleteIcon(), func() {
-		item := ev.remoteList.SelectedItem()
-		if item != nil {
-			ev.promptDeleteRemote(*item)
-		}
+		ev.promptDeleteRemote()
 	})
 	ev.remoteDeleteBtn.Disable()
 
 	remoteToolbar := container.NewHBox(
 		ev.remoteUpBtn,
 		ev.remoteRefreshBtn,
+		ev.remoteSelectAllBtn,
 		ev.remoteNewFolder,
 		ev.remoteDeleteBtn,
 	)
@@ -282,31 +283,40 @@ func (ev *ExplorerView) buildRemotePane() fyne.CanvasObject {
 			ev.NavigateRemote(folderPath)
 		},
 		func(item sftp.Item) {
-			ev.downloadRemoteItem(item)
+			ev.downloadItems([]sftp.Item{item})
 		},
-		func(item *sftp.Item) {
-			if item != nil {
-				ev.btnDownload.Enable()
-				ev.remoteDeleteBtn.Enable()
-				if item.IsDir {
-					ev.remoteInfo.SetText(fmt.Sprintf("📁 %s", item.Name))
+		func(selected []sftp.Item) {
+			count := len(selected)
+			if count > 0 {
+				if ev.tunnelMgr != nil && ev.tunnelMgr.State() == tunnel.StateConnected {
+					ev.btnDownload.Enable()
+					ev.remoteDeleteBtn.Enable()
 				} else {
-					ev.remoteInfo.SetText(fmt.Sprintf("📄 %s (%s)", item.Name, sftp.FormatFileSize(item.Size)))
+					ev.btnDownload.Disable()
+					ev.remoteDeleteBtn.Disable()
 				}
+				ev.btnDownload.SetText(fmt.Sprintf("Download (%d)", count))
+				ev.remoteInfo.SetText(fmt.Sprintf("%d items (%d selected)", ev.remoteItemsCount, count))
 			} else {
 				ev.btnDownload.Disable()
+				ev.btnDownload.SetText("Download")
 				ev.remoteDeleteBtn.Disable()
+				if ev.tunnelMgr != nil && ev.tunnelMgr.State() == tunnel.StateConnected {
+					ev.remoteInfo.SetText(fmt.Sprintf("%d items", ev.remoteItemsCount))
+				} else {
+					ev.remoteInfo.SetText("Disconnected")
+				}
 			}
 		},
 	)
 
-	ev.remoteInfo = widget.NewLabel("0 elementos")
+	ev.remoteInfo = widget.NewLabel("Disconnected")
 	ev.remoteInfo.Truncation = fyne.TextTruncateEllipsis
 	ev.remoteInfo.Importance = widget.LowImportance
 
 	subHeader := container.NewBorder(nil, nil, remoteToolbar, nil, ev.remoteBreadcrumb.Container())
 	header := container.NewVBox(
-		container.NewBorder(nil, nil, title, jumpRow),
+		titleBox,
 		subHeader,
 		widget.NewSeparator(),
 	)
@@ -332,34 +342,81 @@ func (ev *ExplorerView) SetSFTPClient(sc *sftp.Client) {
 
 	if sc != nil {
 		ev.RefreshRemote()
+	} else {
+		fyne.Do(func() {
+			ev.remoteList.SetItems(nil)
+		})
 	}
 }
 
 // UpdateTunnelStatus updates UI elements according to the tunnel connection state.
 func (ev *ExplorerView) UpdateTunnelStatus(st tunnel.State, msg string) {
 	fyne.Do(func() {
+		if ev.tunnelMgr != nil && ev.tunnelMgr.Config() != nil && ev.remoteTitleLabel != nil {
+			if host := strings.TrimSpace(ev.tunnelMgr.Config().SSH.Host); host != "" {
+				ev.remoteTitleLabel.SetText(host)
+			}
+		}
+
 		switch st {
 		case tunnel.StateConnected:
-			ev.statusLabel.SetText(fmt.Sprintf("Túnel activo ● (: %d)", ev.tunnelMgr.Config().WordPress.LocalPort))
+			ev.globalStatusBar.Importance = widget.LowImportance
+			ev.globalStatusBar.SetText("Tunnel active and secure.")
 			ev.openAdminBtn.Enable()
+
 			ev.remoteUpBtn.Enable()
 			ev.remoteRefreshBtn.Enable()
+			ev.remoteSelectAllBtn.Enable()
 			ev.remoteNewFolder.Enable()
-		case tunnel.StateConnecting:
-			ev.statusLabel.SetText("Conectando con el servidor... ◌")
-			ev.openAdminBtn.Disable()
-		case tunnel.StateError:
-			errTxt := "Error de conexión"
-			if msg != "" {
-				errTxt = fmt.Sprintf("Error: %s", msg)
+
+			if ev.localList.SelectedCount() > 0 {
+				ev.btnUpload.Enable()
+				ev.btnUpload.SetText(fmt.Sprintf("Upload (%d)", ev.localList.SelectedCount()))
 			}
-			ev.statusLabel.SetText(errTxt)
-			ev.openAdminBtn.Disable()
+			if ev.remoteList.SelectedCount() > 0 {
+				ev.btnDownload.Enable()
+				ev.btnDownload.SetText(fmt.Sprintf("Download (%d)", ev.remoteList.SelectedCount()))
+				ev.remoteDeleteBtn.Enable()
+			}
+
+		case tunnel.StateConnecting:
+			ev.globalStatusBar.Importance = widget.LowImportance
+			ev.globalStatusBar.SetText("Establishing SSH connection...")
+			ev.disableRemoteUI("Connecting...")
+
+		case tunnel.StateError:
+			ev.globalStatusBar.Importance = widget.DangerImportance
+			errMsg := "Connection error"
+			if msg != "" {
+				errMsg = fmt.Sprintf("Error: %s", msg)
+			}
+			ev.globalStatusBar.SetText(errMsg)
+			ev.disableRemoteUI("Connection failed")
+
 		default:
-			ev.statusLabel.SetText("Desconectado ○")
-			ev.openAdminBtn.Disable()
+			ev.globalStatusBar.Importance = widget.LowImportance
+			ev.globalStatusBar.SetText("")
+			ev.disableRemoteUI("Disconnected")
 		}
 	})
+}
+
+func (ev *ExplorerView) disableRemoteUI(statusText string) {
+	ev.openAdminBtn.Disable()
+	ev.btnUpload.Disable()
+	ev.btnUpload.SetText("Upload")
+	ev.btnDownload.Disable()
+	ev.btnDownload.SetText("Download")
+
+	ev.remoteUpBtn.Disable()
+	ev.remoteRefreshBtn.Disable()
+	ev.remoteSelectAllBtn.Disable()
+	ev.remoteNewFolder.Disable()
+	ev.remoteDeleteBtn.Disable()
+
+	ev.remoteItemsCount = 0
+	ev.remoteList.SetItems(nil)
+	ev.remoteInfo.SetText(statusText)
 }
 
 // --- Local Navigation & Operations ---
@@ -377,22 +434,23 @@ func (ev *ExplorerView) RefreshLocal() {
 		items, err := local.ListDirectory(curPath)
 		fyne.Do(func() {
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("no se pudo listar localmente: %w", err), ev.window)
+				dialog.ShowError(fmt.Errorf("failed to list local directory: %w", err), ev.window)
 				return
 			}
+			ev.localItemsCount = len(items)
 			ev.localList.SetItems(items)
 
 			dirs, files := countItems(items)
-			ev.localInfo.SetText(fmt.Sprintf("%d elementos (%d carpetas, %d archivos)", len(items), dirs, files))
+			ev.localInfo.SetText(fmt.Sprintf("%d items (%d folders, %d files)", len(items), dirs, files))
 		})
 	}()
 }
 
 func (ev *ExplorerView) promptNewLocalFolder() {
 	entry := widget.NewEntry()
-	entry.SetPlaceHolder("nueva_carpeta")
+	entry.SetPlaceHolder("new_folder")
 
-	dialog.ShowCustomConfirm("Nueva Carpeta Local", "Crear", "Cancelar", entry, func(confirmed bool) {
+	dialog.ShowCustomConfirm("New Local Folder", "Create", "Cancel", entry, func(confirmed bool) {
 		if !confirmed || strings.TrimSpace(entry.Text) == "" {
 			return
 		}
@@ -405,26 +463,48 @@ func (ev *ExplorerView) promptNewLocalFolder() {
 	}, ev.window)
 }
 
-func (ev *ExplorerView) promptDeleteLocal(item sftp.Item) {
-	msg := fmt.Sprintf("¿Eliminar archivo local %q?", item.Name)
-	if item.IsDir {
-		msg = fmt.Sprintf("¿Eliminar carpeta local %q y su contenido?", item.Name)
+func (ev *ExplorerView) promptDeleteLocal() {
+	items := ev.localList.SelectedItems()
+	if len(items) == 0 {
+		return
 	}
-	dialog.ShowConfirm("Confirmar eliminación local", msg, func(confirmed bool) {
+
+	var msg string
+	if len(items) == 1 {
+		it := items[0]
+		if it.IsDir {
+			msg = fmt.Sprintf("Delete local folder %q and all its contents?", it.Name)
+		} else {
+			msg = fmt.Sprintf("Delete local file %q?", it.Name)
+		}
+	} else {
+		msg = fmt.Sprintf("Delete %d selected local items and their contents?", len(items))
+	}
+
+	dialog.ShowConfirm("Confirm Local Deletion", msg, func(confirmed bool) {
 		if !confirmed {
 			return
 		}
-		if err := local.Delete(item.Path, item.IsDir); err != nil {
-			dialog.ShowError(err, ev.window)
-		} else {
-			ev.RefreshLocal()
+		for _, it := range items {
+			if err := local.Delete(it.Path, it.IsDir); err != nil {
+				dialog.ShowError(err, ev.window)
+				break
+			}
 		}
+		ev.RefreshLocal()
 	}, ev.window)
 }
 
 // --- Remote Navigation & Operations ---
 
 func (ev *ExplorerView) NavigateRemote(targetPath string) {
+	ev.mu.Lock()
+	sc := ev.sftpClient
+	ev.mu.Unlock()
+	if sc == nil {
+		return
+	}
+
 	cleanPath := path.Clean(targetPath)
 	ev.remotePath = cleanPath
 	ev.remoteBreadcrumb.SetPath(cleanPath)
@@ -445,13 +525,14 @@ func (ev *ExplorerView) RefreshRemote() {
 		items, err := sc.List(curPath)
 		fyne.Do(func() {
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("no se pudo listar remoto %s: %w", curPath, err), ev.window)
+				dialog.ShowError(fmt.Errorf("failed to list remote directory %s: %w", curPath, err), ev.window)
 				return
 			}
+			ev.remoteItemsCount = len(items)
 			ev.remoteList.SetItems(items)
 
 			dirs, files := countItems(items)
-			ev.remoteInfo.SetText(fmt.Sprintf("%d elementos (%d carpetas, %d archivos)", len(items), dirs, files))
+			ev.remoteInfo.SetText(fmt.Sprintf("%d items (%d folders, %d files)", len(items), dirs, files))
 		})
 	}()
 }
@@ -467,9 +548,9 @@ func (ev *ExplorerView) promptNewRemoteFolder() {
 	}
 
 	entry := widget.NewEntry()
-	entry.SetPlaceHolder("nueva_carpeta")
+	entry.SetPlaceHolder("new_folder")
 
-	dialog.ShowCustomConfirm("Nueva Carpeta Remota", "Crear", "Cancelar", entry, func(confirmed bool) {
+	dialog.ShowCustomConfirm("New Remote Folder", "Create", "Cancel", entry, func(confirmed bool) {
 		if !confirmed || strings.TrimSpace(entry.Text) == "" {
 			return
 		}
@@ -484,7 +565,7 @@ func (ev *ExplorerView) promptNewRemoteFolder() {
 	}, ev.window)
 }
 
-func (ev *ExplorerView) promptDeleteRemote(item sftp.Item) {
+func (ev *ExplorerView) promptDeleteRemote() {
 	ev.mu.Lock()
 	sc := ev.sftpClient
 	ev.mu.Unlock()
@@ -493,79 +574,119 @@ func (ev *ExplorerView) promptDeleteRemote(item sftp.Item) {
 		return
 	}
 
-	msg := fmt.Sprintf("¿Eliminar archivo remoto %q?", item.Name)
-	if item.IsDir {
-		msg = fmt.Sprintf("¿Eliminar carpeta remota %q y su contenido?", item.Name)
+	items := ev.remoteList.SelectedItems()
+	if len(items) == 0 {
+		return
 	}
 
-	dialog.ShowConfirm("Confirmar eliminación remota", msg, func(confirmed bool) {
+	var msg string
+	if len(items) == 1 {
+		it := items[0]
+		if it.IsDir {
+			msg = fmt.Sprintf("Delete remote folder %q and all its contents?", it.Name)
+		} else {
+			msg = fmt.Sprintf("Delete remote file %q?", it.Name)
+		}
+	} else {
+		msg = fmt.Sprintf("Delete %d selected remote items and their contents?", len(items))
+	}
+
+	dialog.ShowConfirm("Confirm Remote Deletion", msg, func(confirmed bool) {
 		if !confirmed {
 			return
 		}
 		go func() {
-			if err := sc.Delete(item.Path, item.IsDir); err != nil {
-				fyne.Do(func() { dialog.ShowError(err, ev.window) })
-			} else {
-				ev.RefreshRemote()
+			for _, it := range items {
+				if err := sc.Delete(it.Path, it.IsDir); err != nil {
+					fyne.Do(func() { dialog.ShowError(err, ev.window) })
+					break
+				}
 			}
+			ev.RefreshRemote()
 		}()
 	}, ev.window)
 }
 
 // --- Transfers (Local <-> Remote) ---
 
-// TransferSelectedLocalToRemote uploads the selected item in the local pane to the remote directory.
+// TransferSelectedLocalToRemote uploads all selected local items to the remote directory.
 func (ev *ExplorerView) TransferSelectedLocalToRemote() {
-	item := ev.localList.SelectedItem()
-	if item == nil {
+	selected := ev.localList.SelectedItems()
+	if len(selected) == 0 {
 		return
 	}
-	ev.uploadLocalItem(*item)
+	ev.uploadItems(selected)
 }
 
-func (ev *ExplorerView) uploadLocalItem(item sftp.Item) {
+func (ev *ExplorerView) uploadItems(items []sftp.Item) {
 	ev.mu.Lock()
 	sc := ev.sftpClient
 	targetRemoteDir := ev.remotePath
 	ev.mu.Unlock()
 
 	if sc == nil {
-		dialog.ShowInformation("Sin conexión", "Conecte al servidor para subir archivos.", ev.window)
+		dialog.ShowInformation("Not Connected", "Connect to server to upload files.", ev.window)
 		return
 	}
 
-	if item.IsDir {
-		dialog.ShowInformation("Aviso", "Seleccione un archivo individual para subir.", ev.window)
-		return
+	totalItems := len(items)
+	title := "Uploading"
+	if totalItems == 1 {
+		title = fmt.Sprintf("Uploading %s", items[0].Name)
 	}
 
-	remoteTarget := path.Join(targetRemoteDir, item.Name)
+	prog := ShowTransferDialog(title, "", ev.window)
 
 	go func() {
-		prog := ShowTransferDialog("Subiendo archivo", item.Name, ev.window)
-		err := sc.Upload(item.Path, remoteTarget, func(transferred, total int64) {
-			prog.UpdateProgress(transferred, total)
-		})
-		prog.Close()
+		defer prog.Close()
 
-		if err != nil {
-			fyne.Do(func() { dialog.ShowError(err, ev.window) })
-		} else {
-			ev.RefreshRemote()
+		for idx, item := range items {
+			currentNum := idx + 1
+			remoteTarget := path.Join(targetRemoteDir, item.Name)
+
+			if item.IsDir {
+				prog.SetTitle(fmt.Sprintf("[%d/%d] Uploading folder %s...", currentNum, totalItems, item.Name))
+				prog.ResetProgress()
+				err := sc.UploadDir(item.Path, remoteTarget, func(fileName string, size int64) {
+					prog.SetTitle(fmt.Sprintf("[%d/%d] %s: %s", currentNum, totalItems, item.Name, fileName))
+					prog.ResetProgress()
+				}, func(transferred, total int64) {
+					prog.UpdateProgress(transferred, total)
+				})
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, ev.window) })
+					break
+				}
+			} else {
+				prog.SetTitle(fmt.Sprintf("[%d/%d] Uploading file %s...", currentNum, totalItems, item.Name))
+				prog.ResetProgress()
+				err := sc.Upload(item.Path, remoteTarget, func(transferred, total int64) {
+					prog.UpdateProgress(transferred, total)
+				})
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, ev.window) })
+					break
+				}
+			}
 		}
+
+		ev.RefreshRemote()
+		fyne.Do(func() {
+			ev.localList.ClearSelection()
+		})
 	}()
 }
 
-// TransferSelectedRemoteToLocal downloads the selected item in the remote pane to the local directory.
+// TransferSelectedRemoteToLocal downloads all selected remote items to the local directory.
 func (ev *ExplorerView) TransferSelectedRemoteToLocal() {
-	item := ev.remoteList.SelectedItem()
-	if item == nil {
+	selected := ev.remoteList.SelectedItems()
+	if len(selected) == 0 {
 		return
 	}
-	ev.downloadRemoteItem(*item)
+	ev.downloadItems(selected)
 }
 
-func (ev *ExplorerView) downloadRemoteItem(item sftp.Item) {
+func (ev *ExplorerView) downloadItems(items []sftp.Item) {
 	ev.mu.Lock()
 	sc := ev.sftpClient
 	targetLocalDir := ev.localPath
@@ -575,29 +696,55 @@ func (ev *ExplorerView) downloadRemoteItem(item sftp.Item) {
 		return
 	}
 
-	if item.IsDir {
-		dialog.ShowInformation("Aviso", "Seleccione un archivo individual para descargar.", ev.window)
-		return
+	totalItems := len(items)
+	title := "Downloading"
+	if totalItems == 1 {
+		title = fmt.Sprintf("Downloading %s", items[0].Name)
 	}
 
-	localTarget := filepath.Join(targetLocalDir, item.Name)
+	prog := ShowTransferDialog(title, "", ev.window)
 
 	go func() {
-		prog := ShowTransferDialog("Descargando archivo", item.Name, ev.window)
-		err := sc.Download(item.Path, localTarget, func(transferred, total int64) {
-			prog.UpdateProgress(transferred, total)
-		})
-		prog.Close()
+		defer prog.Close()
 
-		if err != nil {
-			fyne.Do(func() { dialog.ShowError(err, ev.window) })
-		} else {
-			ev.RefreshLocal()
+		for idx, item := range items {
+			currentNum := idx + 1
+			localTarget := filepath.Join(targetLocalDir, item.Name)
+
+			if item.IsDir {
+				prog.SetTitle(fmt.Sprintf("[%d/%d] Downloading folder %s...", currentNum, totalItems, item.Name))
+				prog.ResetProgress()
+				err := sc.DownloadDir(item.Path, localTarget, func(fileName string, size int64) {
+					prog.SetTitle(fmt.Sprintf("[%d/%d] %s: %s", currentNum, totalItems, item.Name, fileName))
+					prog.ResetProgress()
+				}, func(transferred, total int64) {
+					prog.UpdateProgress(transferred, total)
+				})
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, ev.window) })
+					break
+				}
+			} else {
+				prog.SetTitle(fmt.Sprintf("[%d/%d] Downloading file %s...", currentNum, totalItems, item.Name))
+				prog.ResetProgress()
+				err := sc.Download(item.Path, localTarget, func(transferred, total int64) {
+					prog.UpdateProgress(transferred, total)
+				})
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, ev.window) })
+					break
+				}
+			}
 		}
+
+		ev.RefreshLocal()
+		fyne.Do(func() {
+			ev.remoteList.ClearSelection()
+		})
 	}()
 }
 
-// UploadDroppedFiles uploads files dragged from the OS to the remote directory.
+// UploadDroppedFiles uploads files or folders dragged from the OS to the remote directory.
 func (ev *ExplorerView) UploadDroppedFiles(localPaths []string) {
 	ev.mu.Lock()
 	sc := ev.sftpClient
@@ -605,24 +752,49 @@ func (ev *ExplorerView) UploadDroppedFiles(localPaths []string) {
 	ev.mu.Unlock()
 
 	if sc == nil {
-		dialog.ShowInformation("Sin conexión", "Conecte al servidor antes de soltar archivos.", ev.window)
+		dialog.ShowInformation("Not Connected", "Connect to server before dropping files.", ev.window)
 		return
 	}
 
+	totalItems := len(localPaths)
+	prog := ShowTransferDialog("Uploading", "", ev.window)
+
 	go func() {
-		for _, localPath := range localPaths {
+		defer prog.Close()
+
+		for idx, localPath := range localPaths {
+			currentNum := idx + 1
 			fileName := filepath.Base(localPath)
 			remoteTarget := path.Join(targetRemoteDir, fileName)
 
-			prog := ShowTransferDialog("Subiendo archivo", fileName, ev.window)
-			err := sc.Upload(localPath, remoteTarget, func(transferred, total int64) {
-				prog.UpdateProgress(transferred, total)
-			})
-			prog.Close()
-
+			stat, err := os.Stat(localPath)
 			if err != nil {
-				fyne.Do(func() { dialog.ShowError(err, ev.window) })
-				break
+				continue
+			}
+
+			if stat.IsDir() {
+				prog.SetTitle(fmt.Sprintf("[%d/%d] Uploading folder %s...", currentNum, totalItems, fileName))
+				prog.ResetProgress()
+				err := sc.UploadDir(localPath, remoteTarget, func(subName string, size int64) {
+					prog.SetTitle(fmt.Sprintf("[%d/%d] %s: %s", currentNum, totalItems, fileName, subName))
+					prog.ResetProgress()
+				}, func(transferred, total int64) {
+					prog.UpdateProgress(transferred, total)
+				})
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, ev.window) })
+					break
+				}
+			} else {
+				prog.SetTitle(fmt.Sprintf("[%d/%d] Uploading file %s...", currentNum, totalItems, fileName))
+				prog.ResetProgress()
+				err := sc.Upload(localPath, remoteTarget, func(transferred, total int64) {
+					prog.UpdateProgress(transferred, total)
+				})
+				if err != nil {
+					fyne.Do(func() { dialog.ShowError(err, ev.window) })
+					break
+				}
 			}
 		}
 		ev.RefreshRemote()

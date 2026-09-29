@@ -70,23 +70,23 @@ func (t *TrayManager) Refresh() {
 
 	switch state {
 	case tunnel.StateConnected:
-		systray.SetTitle(" dym-bridge ●")
-		systray.SetTooltip(fmt.Sprintf("dym-bridge — Túnel activo (%s)", t.tunnelMgr.AdminURL()))
+		systray.SetTitle(" Dym Bridge ●")
+		systray.SetTooltip(fmt.Sprintf("Dym Bridge — Active tunnel (%s)", t.tunnelMgr.AdminURL()))
 	case tunnel.StateConnecting:
-		systray.SetTitle(" dym-bridge ◌")
-		systray.SetTooltip("dym-bridge — Conectando...")
+		systray.SetTitle(" Dym Bridge ◌")
+		systray.SetTooltip("Dym Bridge — Connecting...")
 	case tunnel.StateError:
-		systray.SetTitle(" dym-bridge ✕")
-		systray.SetTooltip("dym-bridge — Error de conexión")
+		systray.SetTitle(" Dym Bridge ✕")
+		systray.SetTooltip("Dym Bridge — Connection error")
 	default:
-		systray.SetTitle(" dym-bridge ○")
-		systray.SetTooltip("dym-bridge — Desconectado")
+		systray.SetTitle(" Dym Bridge ○")
+		systray.SetTooltip("Dym Bridge — Disconnected")
 	}
 
 	var menuItems []*fyne.MenuItem
 
-	// 1. Open WordPress Admin item
-	openAdminLabel := "Abrir WordPress Admin"
+	// 1. Open Web Admin item
+	openAdminLabel := "Open Web Admin"
 	if state == tunnel.StateConnected {
 		openAdminLabel = fmt.Sprintf("● %s", openAdminLabel)
 	}
@@ -99,7 +99,7 @@ func (t *TrayManager) Refresh() {
 	menuItems = append(menuItems, openAdminItem)
 
 	// 2. Open File Explorer item
-	openExplorerItem := fyne.NewMenuItem("Explorador de Archivos...", func() {
+	openExplorerItem := fyne.NewMenuItem("File Explorer...", func() {
 		t.window.Show()
 		t.window.RequestFocus()
 	})
@@ -109,11 +109,11 @@ func (t *TrayManager) Refresh() {
 
 	// 3. Connect / Reconnect item
 	if state == tunnel.StateConnected {
-		menuItems = append(menuItems, fyne.NewMenuItem("Desconectar Túnel", func() {
+		menuItems = append(menuItems, fyne.NewMenuItem("Disconnect Tunnel", func() {
 			t.tunnelMgr.Disconnect()
 		}))
 	} else {
-		menuItems = append(menuItems, fyne.NewMenuItem("Reconectar Túnel", func() {
+		menuItems = append(menuItems, fyne.NewMenuItem("Reconnect Tunnel", func() {
 			if t.onReconnect != nil {
 				t.onReconnect()
 			}
@@ -122,7 +122,7 @@ func (t *TrayManager) Refresh() {
 
 	// 4. Host info display
 	if cfg != nil {
-		infoItem := fyne.NewMenuItem(fmt.Sprintf("Servidor: %s", cfg.SSH.Host), nil)
+		infoItem := fyne.NewMenuItem(fmt.Sprintf("Server: %s", cfg.SSH.Host), nil)
 		infoItem.Disabled = true
 		menuItems = append(menuItems, infoItem)
 	}
@@ -130,12 +130,12 @@ func (t *TrayManager) Refresh() {
 	menuItems = append(menuItems, fyne.NewMenuItemSeparator())
 
 	// 5. Quit application item
-	quitItem := fyne.NewMenuItem("Salir de dym-bridge", func() {
+	quitItem := fyne.NewMenuItem("Quit Dym Bridge", func() {
 		t.app.Quit()
 	})
 	quitItem.IsQuit = true
 	menuItems = append(menuItems, quitItem)
 
-	menu := fyne.NewMenu("dym-bridge", menuItems...)
+	menu := fyne.NewMenu("Dym Bridge", menuItems...)
 	desk.SetSystemTrayMenu(menu)
 }

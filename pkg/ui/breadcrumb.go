@@ -100,11 +100,13 @@ func (bb *BreadcrumbBar) SetPath(dirPath string) {
 		sep.Importance = widget.LowImportance
 		bb.rowBox.Add(sep)
 
-		ellipsisBtn := widget.NewButton("…", func() {
+		var ellipsisBtn *widget.Button
+		ellipsisBtn = widget.NewButton("…", func() {
 			if bb.window != nil && len(hiddenMenuItems) > 0 {
-				menu := fyne.NewMenu("Carpetas intermedias", hiddenMenuItems...)
-				popup := widget.NewPopUpMenu(menu, bb.window.Canvas())
-				popup.Show()
+				menu := fyne.NewMenu("Intermediate Folders", hiddenMenuItems...)
+				btnPos := fyne.CurrentApp().Driver().AbsolutePositionForObject(ellipsisBtn)
+				pos := fyne.NewPos(btnPos.X, btnPos.Y+ellipsisBtn.Size().Height)
+				widget.ShowPopUpMenuAtPosition(menu, bb.window.Canvas(), pos)
 			}
 		})
 		ellipsisBtn.Importance = widget.LowImportance

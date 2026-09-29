@@ -21,5 +21,5 @@ func String() string {
 
 // FullInfo returns multi-line version details for the version command and About dialog
 func FullInfo() string {
-	return fmt.Sprintf("dym-bridge %s\nCommit: %s\nBuilt:  %s", Version, GitCommit, BuildDate)
+	return fmt.Sprintf("Dym Bridge %s\nCommit: %s\nBuilt:  %s", Version, GitCommit, BuildDate)
 }

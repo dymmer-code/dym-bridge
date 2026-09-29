@@ -36,7 +36,7 @@ func NewApp(cfg *config.Config) *App {
 	iconRes := GetAppIconResource()
 	a.SetIcon(iconRes)
 
-	w := a.NewWindow("dym-bridge — WordPress Manager")
+	w := a.NewWindow("Dym Bridge")
 	w.SetIcon(iconRes)
 	w.Resize(fyne.NewSize(680, 480))
 
@@ -122,32 +122,32 @@ func (a *App) setupConnectedUI() {
 }
 
 func (a *App) setupMissingConfigUI() {
-	header := widget.NewLabel("Configuración dym-bridge.ini no encontrada")
+	header := widget.NewLabel("Configuration dym-bridge.ini Not Found")
 	header.TextStyle = fyne.TextStyle{Bold: true}
 
 	var checkedPaths strings.Builder
-	checkedPaths.WriteString("No se encontró el archivo de configuración en ninguna de las siguientes rutas:\n\n")
+	checkedPaths.WriteString("Configuration file was not found in any of the following paths:\n\n")
 	for _, p := range config.CandidatePaths() {
 		checkedPaths.WriteString(fmt.Sprintf(" • %s\n", p))
 	}
-	checkedPaths.WriteString("\nPuede crear una plantilla de ejemplo en la carpeta actual o seleccionar un archivo existente:")
+	checkedPaths.WriteString("\nYou can generate a sample template in the current directory or select an existing file:")
 
 	desc := widget.NewLabel(checkedPaths.String())
 	desc.Wrapping = fyne.TextWrapWord
 
-	btnCreateSample := widget.NewButtonWithIcon("Crear plantilla dym-bridge.ini", theme.DocumentCreateIcon(), func() {
+	btnCreateSample := widget.NewButtonWithIcon("Create sample dym-bridge.ini", theme.DocumentCreateIcon(), func() {
 		samplePath := config.DefaultConfigFileName
 		if err := os.WriteFile(samplePath, []byte(config.SampleConfigTemplate()), 0644); err != nil {
-			dialog.ShowError(fmt.Errorf("error al crear %s: %w", samplePath, err), a.window)
+			dialog.ShowError(fmt.Errorf("error creating %s: %w", samplePath, err), a.window)
 			return
 		}
-		dialog.ShowInformation("Plantilla Creada",
-			fmt.Sprintf("Se ha generado el archivo %s.\nEdítelo con sus datos y vuelva a iniciar dym-bridge.", samplePath),
+		dialog.ShowInformation("Template Created",
+			fmt.Sprintf("The sample configuration file %s has been created.\nEdit it with your server details and restart dym-bridge.", samplePath),
 			a.window)
 	})
 	btnCreateSample.Importance = widget.HighImportance
 
-	btnSelectFile := widget.NewButtonWithIcon("Seleccionar archivo .ini existente...", theme.FolderOpenIcon(), func() {
+	btnSelectFile := widget.NewButtonWithIcon("Select existing .ini file...", theme.FolderOpenIcon(), func() {
 		dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
 			if err != nil || reader == nil {
 				return
@@ -157,7 +157,7 @@ func (a *App) setupMissingConfigUI() {
 
 			cfg, err := config.Load(filePath)
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("archivo de configuración inválido: %w", err), a.window)
+				dialog.ShowError(fmt.Errorf("invalid configuration file: %w", err), a.window)
 				return
 			}
 

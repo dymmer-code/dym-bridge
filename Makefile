@@ -47,7 +47,9 @@ bundle:
 		'    <key>CFBundleIdentifier</key>' \
 		'    <string>com.dymmer.bridge</string>' \
 		'    <key>CFBundleName</key>' \
-		'    <string>dym-bridge</string>' \
+		'    <string>Dym Bridge</string>' \
+		'    <key>CFBundleDisplayName</key>' \
+		'    <string>Dym Bridge</string>' \
 		'    <key>CFBundlePackageType</key>' \
 		'    <string>APPL</string>' \
 		'    <key>CFBundleShortVersionString</key>' \
@@ -80,8 +82,13 @@ dmg: bundle
 windows:
 	@echo "Building Windows executable bin/$(APP_NAME).exe..."
 	@mkdir -p bin
-	CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge 2>/dev/null || \
-	GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME).exe ./cmd/dym-bridge
+	@if command -v zig >/dev/null 2>&1; then \
+		CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows-gnu" CXX="zig c++ -target x86_64-windows-gnu" go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge; \
+	elif command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
+		CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge; \
+	else \
+		GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge; \
+	fi
 	@echo "✔ bin/$(APP_NAME).exe built!"
 
 clean:

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <mask id="bridge-cutout">
+      <!-- White shows, Black cuts out -->
+      <rect width="512" height="512" fill="white"/>
+      <g transform="rotate(-45 256 256)">
+        <!-- Negative space channels -->
+        <rect x="208" y="104" width="22" height="304" rx="11" fill="black"/>
+        <rect x="282" y="104" width="22" height="304" rx="11" fill="black"/>
+        <!-- Road markings -->
+        <line x1="256" y1="130" x2="256" y2="175" stroke="black" stroke-width="6" stroke-linecap="round"/>
+        <line x1="256" y1="205" x2="256" y2="250" stroke="black" stroke-width="6" stroke-linecap="round"/>
+        <line x1="256" y1="280" x2="256" y2="325" stroke="black" stroke-width="6" stroke-linecap="round"/>
+        <line x1="256" y1="355" x2="256" y2="390" stroke="black" stroke-width="6" stroke-linecap="round"/>
+      </g>
+    </mask>
+  </defs>
+
+  <g transform="rotate(-45 256 256)">
+    <!-- Base diamond with cutout mask -->
+    <rect x="116" y="116" width="280" height="280" rx="46" fill="#5F82AD" mask="url(#bridge-cutout)"/>
+    <!-- Transverse piers in channels -->
+    <rect x="200" y="180" width="38" height="14" rx="4" fill="#5F82AD"/>
+    <rect x="200" y="320" width="38" height="14" rx="4" fill="#5F82AD"/>
+    <rect x="274" y="180" width="38" height="14" rx="4" fill="#5F82AD"/>
+    <rect x="274" y="320" width="38" height="14" rx="4" fill="#5F82AD"/>
+  </g>
+</svg>

@@ -91,7 +91,7 @@ host_header = minimal.com
 	if cfg.WordPress.AdminPath != "/wp-admin/" {
 		t.Errorf("expected default admin path /wp-admin/, got %s", cfg.WordPress.AdminPath)
 	}
-	if cfg.SFTP.RemotePath != "/var/www/html/wp-content" {
+	if cfg.SFTP.RemotePath != "/var/www/wordpress" {
 		t.Errorf("expected default sftp path, got %s", cfg.SFTP.RemotePath)
 	}
 }

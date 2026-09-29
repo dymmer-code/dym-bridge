@@ -20,10 +20,16 @@ type TransferDialog struct {
 
 // ShowTransferDialog creates and displays a transfer progress dialog.
 func ShowTransferDialog(title, fileName string, parent fyne.Window) *TransferDialog {
-	titleLabel := widget.NewLabel(fmt.Sprintf("%s: %s", title, fileName))
+	titleText := title
+	if fileName != "" {
+		titleText = fmt.Sprintf("%s: %s", title, fileName)
+	}
+	titleLabel := widget.NewLabel(titleText)
 	titleLabel.TextStyle = fyne.TextStyle{Bold: true}
+	titleLabel.Truncation = fyne.TextTruncateEllipsis
 
-	statusLabel := widget.NewLabel("Iniciando transferencia...")
+	statusLabel := widget.NewLabel("Starting transfer...")
+	statusLabel.Truncation = fyne.TextTruncateEllipsis
 	progressBar := widget.NewProgressBar()
 	progressBar.SetValue(0)
 
@@ -43,6 +49,27 @@ func ShowTransferDialog(title, fileName string, parent fyne.Window) *TransferDia
 		statusLabel: statusLabel,
 		progressBar: progressBar,
 	}
+}
+
+// SetTitle updates the dialog title/header text.
+func (td *TransferDialog) SetTitle(title string) {
+	fyne.Do(func() {
+		td.titleLabel.SetText(title)
+	})
+}
+
+// SetStatus updates the status label text.
+func (td *TransferDialog) SetStatus(status string) {
+	fyne.Do(func() {
+		td.statusLabel.SetText(status)
+	})
+}
+
+// ResetProgress resets the progress bar value to 0.
+func (td *TransferDialog) ResetProgress() {
+	fyne.Do(func() {
+		td.progressBar.SetValue(0)
+	})
 }
 
 // UpdateProgress updates the progress bar and status text.

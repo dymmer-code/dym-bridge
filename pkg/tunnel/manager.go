@@ -95,7 +95,7 @@ func (m *Manager) Connect() error {
 	if err != nil {
 		_ = sshConn.Close()
 		m.setState(StateError, err)
-		return fmt.Errorf("error al inicializar el proxy HTTP local: %w", err)
+		return fmt.Errorf("failed to initialize local HTTP proxy: %w", err)
 	}
 
 	proxy.Start()

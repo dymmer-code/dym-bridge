@@ -80,6 +80,15 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) applyDefaults() {
+	c.SSH.Host = strings.TrimSpace(c.SSH.Host)
+	c.SSH.User = strings.TrimSpace(c.SSH.User)
+	c.SSH.Password = strings.TrimSpace(c.SSH.Password)
+	c.SSH.KeyFile = strings.TrimSpace(c.SSH.KeyFile)
+	c.SSH.Passphrase = strings.TrimSpace(c.SSH.Passphrase)
+	c.WordPress.HostHeader = strings.TrimSpace(c.WordPress.HostHeader)
+	c.WordPress.AdminPath = strings.TrimSpace(c.WordPress.AdminPath)
+	c.SFTP.RemotePath = strings.TrimSpace(c.SFTP.RemotePath)
+
 	if c.SSH.Port <= 0 {
 		c.SSH.Port = 22
 	}
@@ -95,7 +104,7 @@ func (c *Config) applyDefaults() {
 		c.WordPress.AdminPath = "/" + c.WordPress.AdminPath
 	}
 	if c.SFTP.RemotePath == "" {
-		c.SFTP.RemotePath = "/var/www/html/wp-content"
+		c.SFTP.RemotePath = "/var/www/wordpress"
 	}
 }
 

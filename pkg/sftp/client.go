@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -31,12 +32,12 @@ type Client struct {
 // NewClient creates a new SFTP client over an established SSH client.
 func NewClient(sshClient *ssh.Client) (*Client, error) {
 	if sshClient == nil {
-		return nil, fmt.Errorf("cliente SSH no inicializado")
+		return nil, fmt.Errorf("SSH client not initialized")
 	}
 
 	sc, err := sftp.NewClient(sshClient)
 	if err != nil {
-		return nil, fmt.Errorf("no se pudo iniciar subsistema SFTP: %w", err)
+		return nil, fmt.Errorf("failed to start SFTP subsystem: %w", err)
 	}
 
 	return &Client{sftpClient: sc}, nil
@@ -53,12 +54,12 @@ func (c *Client) Close() error {
 // List returns the contents of the given directory, with folders first, sorted alphabetically.
 func (c *Client) List(dirPath string) ([]Item, error) {
 	if c.sftpClient == nil {
-		return nil, fmt.Errorf("cliente SFTP no conectado")
+		return nil, fmt.Errorf("SFTP client not connected")
 	}
 
 	entries, err := c.sftpClient.ReadDir(dirPath)
 	if err != nil {
-		return nil, fmt.Errorf("error al listar directorio %q: %w", dirPath, err)
+		return nil, fmt.Errorf("failed to list directory %q: %w", dirPath, err)
 	}
 
 	var items []Item
@@ -101,31 +102,31 @@ func SortItems(items []Item) {
 // Upload uploads a local file to the specified remote path.
 func (c *Client) Upload(localPath, remoteFilePath string, progress ProgressCallback) error {
 	if c.sftpClient == nil {
-		return fmt.Errorf("cliente SFTP no conectado")
+		return fmt.Errorf("SFTP client not connected")
 	}
 
 	localFile, err := os.Open(localPath)
 	if err != nil {
-		return fmt.Errorf("error al abrir archivo local %q: %w", localPath, err)
+		return fmt.Errorf("failed to open local file %q: %w", localPath, err)
 	}
 	defer localFile.Close()
 
 	stat, err := localFile.Stat()
 	if err != nil {
-		return fmt.Errorf("error al obtener tamaño de %q: %w", localPath, err)
+		return fmt.Errorf("failed to get size for %q: %w", localPath, err)
 	}
 
 	// Create or truncate remote file
 	remoteFile, err := c.sftpClient.Create(remoteFilePath)
 	if err != nil {
-		return fmt.Errorf("error al crear archivo remoto %q: %w", remoteFilePath, err)
+		return fmt.Errorf("failed to create remote file %q: %w", remoteFilePath, err)
 	}
 	defer remoteFile.Close()
 
 	reader := NewCountingReader(localFile, stat.Size(), progress)
 	buf := make([]byte, 64*1024)
 	if _, err := io.CopyBuffer(remoteFile, reader, buf); err != nil {
-		return fmt.Errorf("error al transferir archivo a %q: %w", remoteFilePath, err)
+		return fmt.Errorf("failed to transfer file to %q: %w", remoteFilePath, err)
 	}
 
 	return nil
@@ -134,30 +135,116 @@ func (c *Client) Upload(localPath, remoteFilePath string, progress ProgressCallb
 // Download downloads a remote file to a local destination path.
 func (c *Client) Download(remoteFilePath, localFilePath string, progress ProgressCallback) error {
 	if c.sftpClient == nil {
-		return fmt.Errorf("cliente SFTP no conectado")
+		return fmt.Errorf("SFTP client not connected")
 	}
 
 	remoteFile, err := c.sftpClient.Open(remoteFilePath)
 	if err != nil {
-		return fmt.Errorf("error al abrir archivo remoto %q: %w", remoteFilePath, err)
+		return fmt.Errorf("failed to open remote file %q: %w", remoteFilePath, err)
 	}
 	defer remoteFile.Close()
 
 	stat, err := remoteFile.Stat()
 	if err != nil {
-		return fmt.Errorf("error al consultar archivo remoto %q: %w", remoteFilePath, err)
+		return fmt.Errorf("failed to stat remote file %q: %w", remoteFilePath, err)
 	}
 
 	localFile, err := os.Create(localFilePath)
 	if err != nil {
-		return fmt.Errorf("error al crear archivo local %q: %w", localFilePath, err)
+		return fmt.Errorf("failed to create local file %q: %w", localFilePath, err)
 	}
 	defer localFile.Close()
 
 	reader := NewCountingReader(remoteFile, stat.Size(), progress)
 	buf := make([]byte, 64*1024)
 	if _, err := io.CopyBuffer(localFile, reader, buf); err != nil {
-		return fmt.Errorf("error al descargar archivo a %q: %w", localFilePath, err)
+		return fmt.Errorf("failed to download file to %q: %w", localFilePath, err)
+	}
+
+	return nil
+}
+
+// UploadDir recursively uploads a local directory tree to a target remote directory.
+func (c *Client) UploadDir(localDirPath, remoteDirPath string, onFileStart func(relPath string, size int64), progress ProgressCallback) error {
+	if c.sftpClient == nil {
+		return fmt.Errorf("SFTP client not connected")
+	}
+
+	if err := c.sftpClient.MkdirAll(remoteDirPath); err != nil {
+		return fmt.Errorf("failed to create remote directory %q: %w", remoteDirPath, err)
+	}
+
+	entries, err := os.ReadDir(localDirPath)
+	if err != nil {
+		return fmt.Errorf("failed to read local directory %q: %w", localDirPath, err)
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == "." || name == ".." {
+			continue
+		}
+
+		subLocal := filepath.Join(localDirPath, name)
+		subRemote := path.Join(remoteDirPath, name)
+
+		if entry.IsDir() {
+			if err := c.UploadDir(subLocal, subRemote, onFileStart, progress); err != nil {
+				return err
+			}
+		} else {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			if onFileStart != nil {
+				onFileStart(name, info.Size())
+			}
+			if err := c.Upload(subLocal, subRemote, progress); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// DownloadDir recursively downloads a remote directory tree to a target local directory.
+func (c *Client) DownloadDir(remoteDirPath, localDirPath string, onFileStart func(relPath string, size int64), progress ProgressCallback) error {
+	if c.sftpClient == nil {
+		return fmt.Errorf("SFTP client not connected")
+	}
+
+	if err := os.MkdirAll(localDirPath, 0755); err != nil {
+		return fmt.Errorf("failed to create local directory %q: %w", localDirPath, err)
+	}
+
+	entries, err := c.sftpClient.ReadDir(remoteDirPath)
+	if err != nil {
+		return fmt.Errorf("failed to read remote directory %q: %w", remoteDirPath, err)
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if name == "." || name == ".." {
+			continue
+		}
+
+		subRemote := path.Join(remoteDirPath, name)
+		subLocal := filepath.Join(localDirPath, name)
+
+		if entry.IsDir() {
+			if err := c.DownloadDir(subRemote, subLocal, onFileStart, progress); err != nil {
+				return err
+			}
+		} else {
+			if onFileStart != nil {
+				onFileStart(name, entry.Size())
+			}
+			if err := c.Download(subRemote, subLocal, progress); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -166,7 +253,7 @@ func (c *Client) Download(remoteFilePath, localFilePath string, progress Progres
 // Mkdir creates a directory on the remote server.
 func (c *Client) Mkdir(remoteDirPath string) error {
 	if c.sftpClient == nil {
-		return fmt.Errorf("cliente SFTP no conectado")
+		return fmt.Errorf("SFTP client not connected")
 	}
 	return c.sftpClient.Mkdir(remoteDirPath)
 }
@@ -174,7 +261,7 @@ func (c *Client) Mkdir(remoteDirPath string) error {
 // Delete removes a file or directory on the remote server.
 func (c *Client) Delete(remotePath string, isDir bool) error {
 	if c.sftpClient == nil {
-		return fmt.Errorf("cliente SFTP no conectado")
+		return fmt.Errorf("SFTP client not connected")
 	}
 
 	if isDir {

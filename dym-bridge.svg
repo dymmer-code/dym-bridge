@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- macOS Big Sur continuous-curvature squircle path (824x824 centered in 1024x1024) -->
+    <path id="squircle" d="M923.347,288.083c8.858,-100.22 -75.686,-184.628 -187.957,-188.083l-447.433,-0c-105.078,-1.342 -189.28,82.953 -187.957,188.083l-0,447.732c0.604,106.676 84.886,191.244 187.957,188.083l447.433,0c105.547,2.157 189.892,-81.99 187.957,-188.083l0,-447.732Z"/>
+    <clipPath id="squircle-clip">
+      <use href="#squircle"/>
+    </clipPath>
+  </defs>
+
+  <!-- Squircle Base: Pure solid black -->
+  <use href="#squircle" fill="#000000"/>
+
+  <!-- Content clipped to squircle -->
+  <g clip-path="url(#squircle-clip)">
+    <g transform="rotate(-45 512 512)">
+      <!-- Base Dymmer Diamond: centered at (512, 512), width=500, height=500, rx=82, solid Dymmer blue #5F82AD -->
+      <rect x="262" y="262" width="500" height="500" rx="82" fill="#5F82AD"/>
+
+      <!-- Two straight black negative-space channels from lower-right to upper-left -->
+      <rect x="426" y="240" width="40" height="544" rx="20" fill="#000000"/>
+      <rect x="558" y="240" width="40" height="544" rx="20" fill="#000000"/>
+
+      <!-- Central road dashed markings in solid black -->
+      <line x1="512" y1="285" x2="512" y2="365" stroke="#000000" stroke-width="11" stroke-linecap="round"/>
+      <line x1="512" y1="415" x2="512" y2="495" stroke="#000000" stroke-width="11" stroke-linecap="round"/>
+      <line x1="512" y1="545" x2="512" y2="625" stroke="#000000" stroke-width="11" stroke-linecap="round"/>
+      <line x1="512" y1="675" x2="512" y2="745" stroke="#000000" stroke-width="11" stroke-linecap="round"/>
+
+      <!-- Transverse bridge support piers in Dymmer blue #5F82AD -->
+      <rect x="412" y="375" width="68" height="26" rx="7" fill="#5F82AD"/>
+      <rect x="412" y="625" width="68" height="26" rx="7" fill="#5F82AD"/>
+
+      <rect x="544" y="375" width="68" height="26" rx="7" fill="#5F82AD"/>
+      <rect x="544" y="625" width="68" height="26" rx="7" fill="#5F82AD"/>
+    </g>
+  </g>
+</svg>

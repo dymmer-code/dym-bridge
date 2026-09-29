@@ -33,18 +33,11 @@ func CommonDirectories() map[string]string {
 		return res
 	}
 
-	res["Inicio"] = home
+	res["Home"] = home
 	for _, folder := range []string{"Downloads", "Desktop", "Documents"} {
 		p := filepath.Join(home, folder)
 		if info, err := os.Stat(p); err == nil && info.IsDir() {
-			switch folder {
-			case "Downloads":
-				res["Descargas"] = p
-			case "Desktop":
-				res["Escritorio"] = p
-			case "Documents":
-				res["Documentos"] = p
-			}
+			res[folder] = p
 		}
 	}
 	return res
@@ -54,7 +47,7 @@ func CommonDirectories() map[string]string {
 func ListDirectory(dirPath string) ([]sftp.Item, error) {
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return nil, fmt.Errorf("error al leer directorio local %q: %w", dirPath, err)
+		return nil, fmt.Errorf("failed to read local directory %q: %w", dirPath, err)
 	}
 
 	var items []sftp.Item
