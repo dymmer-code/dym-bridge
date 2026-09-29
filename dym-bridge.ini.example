@@ -13,14 +13,19 @@ port = 22
 # Usuario del servidor SSH / SFTP
 user = cliente_wp
 
-# Autenticación: ruta a la clave privada (relativa o absoluta)
+# Autenticación SSH: clave privada (recomendada) o contraseña.
+# Puede usar texto plano o cifrado seguro con ENC(...) para no exponer secretos a simple vista.
+# Al iniciar la aplicación, se le solicitará manualmente la clave maestra para desbloquearlos.
+#
+# Opción A: Archivo de clave privada en disco
 key_file = id_ed25519
-
-# Si la clave privada tiene contraseña, descomente:
-# passphrase = mi_contraseña_de_clave
-
-# Alternativamente, si usa contraseña directa en lugar de clave:
-# password = SecretoDelCliente
+# passphrase = mi_contraseña_de_clave_o_ENC(...)
+#
+# Opción B: Clave privada inline cifrada en este mismo archivo
+# key_data = ENC(...)
+#
+# Opción C: Contraseña SSH directa (en texto plano o cifrada)
+# password = SecretoDelCliente_o_ENC(...)
 
 [wordpress]
 # Dominio configurado en WordPress (necesario para la cabecera Host HTTP y evitar redirecciones)

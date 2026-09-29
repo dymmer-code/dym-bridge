@@ -3,7 +3,10 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/dymmer-code/dym-bridge/pkg/secret"
 )
 
 func TestLoadValidConfig(t *testing.T) {
@@ -180,3 +183,67 @@ func TestFindConfigFileExplicit(t *testing.T) {
 		t.Errorf("expected ErrConfigNotFound, got: %v", err)
 	}
 }
+
+func TestKeyDataAndEncryption(t *testing.T) {
+	tempDir := t.TempDir()
+	iniPath := filepath.Join(tempDir, "encrypted.ini")
+
+	masterPwd := "ClaveMaestraTest2026!"
+	encPwd, err := secret.Encrypt("mi_password_secreto", masterPwd)
+	if err != nil {
+		t.Fatalf("failed to encrypt password: %v", err)
+	}
+
+	encKeyData, err := secret.Encrypt("-----BEGIN OPENSSH PRIVATE KEY-----\nfakekey\n-----END OPENSSH PRIVATE KEY-----", masterPwd)
+	if err != nil {
+		t.Fatalf("failed to encrypt key data: %v", err)
+	}
+
+	content := `
+[ssh]
+host = srv.enc.com
+user = secureuser
+password = ` + encPwd + `
+key_data = ` + encKeyData + `
+
+[wordpress]
+host_header = enc.com
+`
+	if err := os.WriteFile(iniPath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test ini: %v", err)
+	}
+
+	cfg, err := Load(iniPath)
+	if err != nil {
+		t.Fatalf("failed to load encrypted config: %v", err)
+	}
+
+	if !cfg.HasEncryptedCredentials() {
+		t.Errorf("expected HasEncryptedCredentials=true")
+	}
+
+	// Try unlocking with wrong master password
+	err = cfg.Unlock("WrongPassword!")
+	if err == nil {
+		t.Errorf("expected error when unlocking with wrong password, got nil")
+	}
+
+	// Unlock with correct master password
+	err = cfg.Unlock(masterPwd)
+	if err != nil {
+		t.Fatalf("unexpected error unlocking config: %v", err)
+	}
+
+	if cfg.SSH.Password != "mi_password_secreto" {
+		t.Errorf("password mismatch: got %q", cfg.SSH.Password)
+	}
+
+	if !strings.Contains(cfg.SSH.KeyData, "fakekey") {
+		t.Errorf("key_data mismatch: got %q", cfg.SSH.KeyData)
+	}
+
+	if cfg.HasEncryptedCredentials() {
+		t.Errorf("expected HasEncryptedCredentials=false after unlocking")
+	}
+}
+

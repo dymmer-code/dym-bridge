@@ -80,10 +80,20 @@ func SampleConfigTemplate() string {
 host = ssh.ejemplo.com
 port = 22
 user = cliente_wp
-# Autenticación: clave privada (recomendada) o contraseña
+
+# Autenticación SSH: clave privada (recomendada) o contraseña.
+# Puede usar texto plano o cifrado seguro con ENC(...) para no exponer secretos a simple vista.
+# Al iniciar la aplicación, se le solicitará manualmente la clave maestra para desbloquearlos.
+#
+# Opción A: Archivo de clave privada en disco
 key_file = id_ed25519
-# passphrase = (si la clave privada está protegida)
-# password = SecretoOpcionalSiNoUsaClave
+# passphrase = (si la clave privada está protegida, o ENC(...))
+#
+# Opción B: Clave privada inline cifrada en este mismo archivo
+# key_data = ENC(...)
+#
+# Opción C: Contraseña SSH directa (en texto plano o cifrada)
+# password = ENC(...)
 
 [wordpress]
 # Dominio de WordPress (para cabecera HTTP Host y evitar bloqueos canónicos)

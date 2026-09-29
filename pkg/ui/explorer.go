@@ -102,11 +102,16 @@ func (ev *ExplorerView) buildUI() {
 	ev.openAdminBtn.Importance = widget.HighImportance
 	ev.openAdminBtn.Disable()
 
+	btnEncrypt := widget.NewButtonWithIcon("Cifrar...", theme.LoginIcon(), func() {
+		ShowEncryptDialog(ev.window)
+	})
+	btnEncrypt.Importance = widget.LowImportance
+
 	transferControls := container.NewHBox(ev.btnUpload, ev.btnDownload)
 
 	topBar := container.NewBorder(
 		nil, nil,
-		nil,
+		btnEncrypt,
 		container.NewHBox(transferControls, widget.NewSeparator(), ev.openAdminBtn),
 	)
 

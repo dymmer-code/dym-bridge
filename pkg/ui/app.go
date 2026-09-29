@@ -164,7 +164,11 @@ func (a *App) setupMissingConfigUI() {
 			a.config = cfg
 			a.tunnelMgr.SetConfig(cfg)
 			a.setupConnectedUI()
-			a.Connect()
+			if a.config.HasEncryptedCredentials() {
+				a.promptMasterPassword()
+			} else {
+				a.Connect()
+			}
 		}, a.window)
 	})
 
@@ -177,6 +181,60 @@ func (a *App) setupMissingConfigUI() {
 	)
 
 	a.window.SetContent(container.NewPadded(content))
+}
+
+func (a *App) promptMasterPassword() {
+	pwdEntry := widget.NewPasswordEntry()
+	pwdEntry.SetPlaceHolder("Clave maestra...")
+
+	errLabel := widget.NewLabel("")
+	errLabel.Importance = widget.DangerImportance
+	errLabel.Wrapping = fyne.TextWrapWord
+
+	descLabel := widget.NewLabel("El archivo de configuración contiene credenciales cifradas (contraseña o clave SSH).\nPor favor, introduzca la clave maestra para desbloquearlas:")
+	descLabel.Wrapping = fyne.TextWrapWord
+
+	var d dialog.Dialog
+
+	btnUnlock := widget.NewButtonWithIcon("Desbloquear", theme.ConfirmIcon(), func() {
+		pwd := pwdEntry.Text
+		if pwd == "" {
+			errLabel.SetText("La clave maestra no puede estar vacía.")
+			return
+		}
+
+		if err := a.config.Unlock(pwd); err != nil {
+			errLabel.SetText("❌ Clave maestra incorrecta o datos cifrados corruptos.")
+			pwdEntry.SetText("")
+			return
+		}
+
+		d.Hide()
+		a.Connect()
+	})
+	btnUnlock.Importance = widget.HighImportance
+
+	btnExit := widget.NewButtonWithIcon("Salir", theme.CancelIcon(), func() {
+		d.Hide()
+		a.fyneApp.Quit()
+	})
+
+	pwdEntry.OnSubmitted = func(_ string) {
+		btnUnlock.Tapped(&fyne.PointEvent{})
+	}
+
+	content := container.NewVBox(
+		descLabel,
+		pwdEntry,
+		errLabel,
+		widget.NewSeparator(),
+		container.NewHBox(btnExit, btnUnlock),
+	)
+
+	d = dialog.NewCustomWithoutButtons("Desbloquear Credenciales", content, a.window)
+	d.Resize(fyne.NewSize(460, 200))
+	d.Show()
+	a.window.Canvas().Focus(pwdEntry)
 }
 
 // Connect starts the background SSH tunnel and connects the SFTP client.
@@ -201,7 +259,11 @@ func (a *App) openAdminInBrowser() {
 func (a *App) Run() {
 	a.window.Show()
 	if a.config != nil {
-		a.Connect()
+		if a.config.HasEncryptedCredentials() {
+			a.promptMasterPassword()
+		} else {
+			a.Connect()
+		}
 	}
 	a.fyneApp.Run()
 }

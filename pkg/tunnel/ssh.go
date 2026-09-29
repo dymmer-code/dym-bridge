@@ -52,13 +52,24 @@ func ConnectSSH(cfg *config.SSHConfig) (*SSHConnection, error) {
 func buildAuthMethods(cfg *config.SSHConfig) ([]ssh.AuthMethod, error) {
 	var methods []ssh.AuthMethod
 
-	if cfg.KeyFile != "" {
-		keyBytes, err := os.ReadFile(cfg.KeyFile)
+	var keyBytes []byte
+	var keySourceDesc string
+
+	if cfg.KeyData != "" {
+		keyBytes = []byte(cfg.KeyData)
+		keySourceDesc = "inline key_data"
+	} else if cfg.KeyFile != "" {
+		var err error
+		keyBytes, err = os.ReadFile(cfg.KeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read private key file %q: %w", cfg.KeyFile, err)
 		}
+		keySourceDesc = fmt.Sprintf("key file %q", cfg.KeyFile)
+	}
 
+	if len(keyBytes) > 0 {
 		var signer ssh.Signer
+		var err error
 		if cfg.Passphrase != "" {
 			signer, err = ssh.ParsePrivateKeyWithPassphrase(keyBytes, []byte(cfg.Passphrase))
 		} else {
@@ -66,7 +77,7 @@ func buildAuthMethods(cfg *config.SSHConfig) ([]ssh.AuthMethod, error) {
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("invalid private key format in %q: %w", cfg.KeyFile, err)
+			return nil, fmt.Errorf("invalid private key in %s: %w", keySourceDesc, err)
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
 	}

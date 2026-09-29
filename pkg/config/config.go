@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/dymmer-code/dym-bridge/pkg/secret"
 	"gopkg.in/ini.v1"
 )
 
@@ -13,7 +14,7 @@ var (
 	ErrConfigNotFound = errors.New("fichero de configuración dym-bridge.ini no encontrado")
 	ErrMissingSSHHost = errors.New("el campo [ssh].host es obligatorio")
 	ErrMissingSSHUser = errors.New("el campo [ssh].user es obligatorio")
-	ErrMissingAuth    = errors.New("se requiere autenticación: configure [ssh].key_file o [ssh].password")
+	ErrMissingAuth    = errors.New("se requiere autenticación: configure [ssh].key_file, [ssh].key_data o [ssh].password")
 	ErrMissingWPHost  = errors.New("el campo [wordpress].host_header es obligatorio")
 )
 
@@ -23,6 +24,7 @@ type SSHConfig struct {
 	User       string `ini:"user"`
 	Password   string `ini:"password"`
 	KeyFile    string `ini:"key_file"`
+	KeyData    string `ini:"key_data"`
 	Passphrase string `ini:"passphrase"`
 }
 
@@ -65,8 +67,8 @@ func Load(path string) (*Config, error) {
 	// Apply default values
 	cfg.applyDefaults()
 
-	// Resolve relative KeyFile path relative to the INI file's directory
-	if cfg.SSH.KeyFile != "" && !filepath.IsAbs(cfg.SSH.KeyFile) {
+	// Resolve relative KeyFile path relative to the INI file's directory (if not encrypted)
+	if cfg.SSH.KeyFile != "" && !secret.IsEncrypted(cfg.SSH.KeyFile) && !filepath.IsAbs(cfg.SSH.KeyFile) {
 		iniDir := filepath.Dir(path)
 		cfg.SSH.KeyFile = filepath.Clean(filepath.Join(iniDir, cfg.SSH.KeyFile))
 	}
@@ -84,6 +86,7 @@ func (c *Config) applyDefaults() {
 	c.SSH.User = strings.TrimSpace(c.SSH.User)
 	c.SSH.Password = strings.TrimSpace(c.SSH.Password)
 	c.SSH.KeyFile = strings.TrimSpace(c.SSH.KeyFile)
+	c.SSH.KeyData = strings.TrimSpace(c.SSH.KeyData)
 	c.SSH.Passphrase = strings.TrimSpace(c.SSH.Passphrase)
 	c.WordPress.HostHeader = strings.TrimSpace(c.WordPress.HostHeader)
 	c.WordPress.AdminPath = strings.TrimSpace(c.WordPress.AdminPath)
@@ -108,6 +111,56 @@ func (c *Config) applyDefaults() {
 	}
 }
 
+// HasEncryptedCredentials reports whether any SSH credential field contains encrypted ENC(...) data.
+func (c *Config) HasEncryptedCredentials() bool {
+	return secret.IsEncrypted(c.SSH.Password) ||
+		secret.IsEncrypted(c.SSH.Passphrase) ||
+		secret.IsEncrypted(c.SSH.KeyData) ||
+		secret.IsEncrypted(c.SSH.KeyFile)
+}
+
+// Unlock decrypts all encrypted fields in memory using the provided master password.
+func (c *Config) Unlock(masterPassword string) error {
+	if secret.IsEncrypted(c.SSH.Password) {
+		dec, err := secret.Decrypt(c.SSH.Password, masterPassword)
+		if err != nil {
+			return fmt.Errorf("error al desencriptar [ssh].password: %w", err)
+		}
+		c.SSH.Password = dec
+	}
+
+	if secret.IsEncrypted(c.SSH.Passphrase) {
+		dec, err := secret.Decrypt(c.SSH.Passphrase, masterPassword)
+		if err != nil {
+			return fmt.Errorf("error al desencriptar [ssh].passphrase: %w", err)
+		}
+		c.SSH.Passphrase = dec
+	}
+
+	if secret.IsEncrypted(c.SSH.KeyData) {
+		dec, err := secret.Decrypt(c.SSH.KeyData, masterPassword)
+		if err != nil {
+			return fmt.Errorf("error al desencriptar [ssh].key_data: %w", err)
+		}
+		c.SSH.KeyData = dec
+	}
+
+	if secret.IsEncrypted(c.SSH.KeyFile) {
+		dec, err := secret.Decrypt(c.SSH.KeyFile, masterPassword)
+		if err != nil {
+			return fmt.Errorf("error al desencriptar [ssh].key_file: %w", err)
+		}
+		c.SSH.KeyFile = dec
+		// Resolve relative path if needed now that it is decrypted
+		if c.SSH.KeyFile != "" && !filepath.IsAbs(c.SSH.KeyFile) && c.LoadedPath != "" {
+			iniDir := filepath.Dir(c.LoadedPath)
+			c.SSH.KeyFile = filepath.Clean(filepath.Join(iniDir, c.SSH.KeyFile))
+		}
+	}
+
+	return nil
+}
+
 // Validate checks that required fields are present and valid.
 func (c *Config) Validate() error {
 	if strings.TrimSpace(c.SSH.Host) == "" {
@@ -116,7 +169,7 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.SSH.User) == "" {
 		return ErrMissingSSHUser
 	}
-	if strings.TrimSpace(c.SSH.KeyFile) == "" && strings.TrimSpace(c.SSH.Password) == "" {
+	if strings.TrimSpace(c.SSH.KeyFile) == "" && strings.TrimSpace(c.SSH.KeyData) == "" && strings.TrimSpace(c.SSH.Password) == "" {
 		return ErrMissingAuth
 	}
 	if strings.TrimSpace(c.WordPress.HostHeader) == "" {
