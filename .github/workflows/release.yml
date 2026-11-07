@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - {os: macos-14, goos: darwin, goarch: arm64}
+          - {os: macos-13, goos: darwin, goarch: amd64}
+          - {os: ubuntu-latest, goos: linux, goarch: amd64}
+          - {os: windows-latest, goos: windows, goarch: amd64}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Libraries the window toolkit needs
+        if: matrix.goos == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+      - name: Test
+        run: go test ./...
+      - name: Build and package
+        shell: bash
+        env:
+          GOOS_NAME: ${{ matrix.goos }}
+          GOARCH_NAME: ${{ matrix.goarch }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          NUM="${VERSION#v}"
+          NAME="dym-bridge_${NUM}_${GOOS_NAME}_${GOARCH_NAME}"
+          LDFLAGS="-s -w -X github.com/dymmer-code/dym-bridge/pkg/version.Version=${VERSION} -X github.com/dymmer-code/dym-bridge/pkg/version.GitCommit=$(git rev-parse --short HEAD) -X github.com/dymmer-code/dym-bridge/pkg/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          mkdir -p dist "stage/${NAME}"
+          case "$GOOS_NAME" in
+            darwin)
+              make bundle-arch ARCH="$GOARCH_NAME" VERSION="$VERSION"
+              cp -R bin/dym-bridge.app "stage/${NAME}/"
+              tar -C stage -czf "dist/${NAME}.tar.gz" "${NAME}"
+              ;;
+            linux)
+              go build -ldflags="$LDFLAGS" -o "stage/${NAME}/dym-bridge" ./cmd/dym-bridge
+              cp packaging/linux/dym-bridge.desktop dym-bridge.png "stage/${NAME}/"
+              tar -C stage -czf "dist/${NAME}.tar.gz" "${NAME}"
+              ;;
+            windows)
+              go build -ldflags="${LDFLAGS} -H=windowsgui" -o "stage/${NAME}/dym-bridge.exe" ./cmd/dym-bridge
+              cp packaging/windows/dym-bridge-protocol.reg "stage/${NAME}/"
+              (cd stage && 7z a -tzip "../dist/${NAME}.zip" "${NAME}")
+              ;;
+          esac
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz *.zip > checksums.txt && cat checksums.txt
+      - name: Create the release and upload the files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes --title "$GITHUB_REF_NAME" || true
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" dist/*.tar.gz dist/*.zip dist/checksums.txt --clobber
