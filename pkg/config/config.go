@@ -26,6 +26,10 @@ type SSHConfig struct {
 	KeyFile    string `ini:"key_file"`
 	KeyData    string `ini:"key_data"`
 	Passphrase string `ini:"passphrase"`
+	// HostKeys are the SHA-256 fingerprints of the keys the server may present (they come from the provisioning of
+	// Dymmer). When there are any, a server with another key is refused; with none (a manual .ini) the first
+	// connection is accepted as it always was.
+	HostKeys []string `ini:"-"`
 }
 
 type WordPressConfig struct {
@@ -44,6 +48,9 @@ type Config struct {
 	WordPress  WordPressConfig `ini:"wordpress"`
 	SFTP       SFTPConfig      `ini:"sftp"`
 	LoadedPath string          `ini:"-"`
+	// Provisioned is true when the configuration comes from Dymmer instead of a .ini file: the web tunnel is optional
+	// then, because Dymmer does not give a Host header.
+	Provisioned bool `ini:"-"`
 }
 
 // Load loads and parses an INI configuration file from the given path.
@@ -172,7 +179,7 @@ func (c *Config) Validate() error {
 	if strings.TrimSpace(c.SSH.KeyFile) == "" && strings.TrimSpace(c.SSH.KeyData) == "" && strings.TrimSpace(c.SSH.Password) == "" {
 		return ErrMissingAuth
 	}
-	if strings.TrimSpace(c.WordPress.HostHeader) == "" {
+	if !c.Provisioned && strings.TrimSpace(c.WordPress.HostHeader) == "" {
 		return ErrMissingWPHost
 	}
 	return nil

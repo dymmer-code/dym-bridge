@@ -1,0 +1,11 @@
+Windows Registry Editor Version 5.00
+
+; Registers dym-bridge:// for the current user (no administrator needed). The installer writes the same keys with the
+; real path of dym-bridge.exe. Replace C:\\Program Files\\Dym Bridge\\dym-bridge.exe if it is installed elsewhere.
+
+[HKEY_CURRENT_USER\Software\Classes\dym-bridge]
+@="URL:Dym Bridge sign-in"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\dym-bridge\shell\open\command]
+@="\"C:\\Program Files\\Dym Bridge\\dym-bridge.exe\" \"%1\""

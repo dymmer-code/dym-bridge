@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Dym Bridge
+Comment=SFTP and tunnels for your Dymmer hosting
+Exec=dym-bridge %u
+Icon=dym-bridge
+Terminal=false
+Categories=Network;FileTransfer;
+MimeType=x-scheme-handler/dym-bridge;

@@ -1,4 +1,4 @@
-.PHONY: build test bundle dmg windows clean
+.PHONY: build test bundle bundle-arch dmg windows clean
 
 APP_NAME = dym-bridge
 BUNDLE_DIR = bin/$(APP_NAME).app
@@ -29,6 +29,10 @@ bundle:
 	@$(MACOS_ENV) GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME)_amd64 ./cmd/dym-bridge
 	@lipo -create -output bin/$(APP_NAME) bin/$(APP_NAME)_amd64 bin/$(APP_NAME)_arm64
 	@rm -f bin/$(APP_NAME)_arm64 bin/$(APP_NAME)_amd64
+	@$(MAKE) --no-print-directory bundle-assemble
+
+# Puts bin/dym-bridge (already built) in the .app with its Info.plist.
+bundle-assemble:
 	@echo "Bundling $(BUNDLE_DIR)..."
 	@rm -rf $(BUNDLE_DIR)
 	@mkdir -p $(BUNDLE_DIR)/Contents/MacOS
@@ -60,9 +64,27 @@ bundle:
 		'    <string>$(MIN_MACOS_VER)</string>' \
 		'    <key>NSHighResolutionCapable</key>' \
 		'    <true/>' \
+		'    <key>CFBundleURLTypes</key>' \
+		'    <array>' \
+		'        <dict>' \
+		'            <key>CFBundleURLName</key>' \
+		'            <string>Dym Bridge sign-in</string>' \
+		'            <key>CFBundleURLSchemes</key>' \
+		'            <array>' \
+		'                <string>dym-bridge</string>' \
+		'            </array>' \
+		'        </dict>' \
+		'    </array>' \
 		'</dict>' \
 		'</plist>' > $(BUNDLE_DIR)/Contents/Info.plist
 	@echo "✔ Universal $(BUNDLE_DIR) created for macOS $(MIN_MACOS_VER)+!"
+
+# One architecture only (CI builds each on its own runner): the same bundle as `bundle`, without the universal merge.
+bundle-arch:
+	@test -n "$(ARCH)" || (echo "ARCH=arm64|amd64 is required" && exit 1)
+	@mkdir -p bin
+	@$(MACOS_ENV) GOARCH=$(ARCH) go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/dym-bridge
+	@$(MAKE) --no-print-directory bundle-assemble
 
 dmg: bundle
 	@echo "Creating DMG..."

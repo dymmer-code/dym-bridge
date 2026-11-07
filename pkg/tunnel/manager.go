@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,6 +85,15 @@ func (m *Manager) Connect() error {
 	if err != nil {
 		m.setState(StateError, err)
 		return err
+	}
+
+	// Without a Host header (a provisioned resource) there is no web tunnel: the connection serves SFTP only.
+	if strings.TrimSpace(cfg.WordPress.HostHeader) == "" {
+		m.mu.Lock()
+		m.sshConn = sshConn
+		m.mu.Unlock()
+		m.setState(StateConnected, nil)
+		return nil
 	}
 
 	// 2. Setup HTTP Reverse Proxy

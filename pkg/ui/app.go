@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/dymmer-code/dym-bridge/pkg/config"
+	"github.com/dymmer-code/dym-bridge/pkg/provision"
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 	"github.com/dymmer-code/dym-bridge/pkg/tunnel"
 )
@@ -26,10 +27,11 @@ type App struct {
 	trayMgr    *TrayManager
 	explorer   *ExplorerView
 	sftpClient *sftp.Client
+	profiles   *provision.Profiles
 }
 
 // NewApp initializes the dym-bridge desktop application.
-func NewApp(cfg *config.Config) *App {
+func NewApp(cfg *config.Config, profiles *provision.Profiles) *App {
 	a := app.NewWithID("com.dymmer.bridge")
 	a.Settings().SetTheme(NewDymBridgeTheme())
 
@@ -47,11 +49,15 @@ func NewApp(cfg *config.Config) *App {
 		window:    w,
 		config:    cfg,
 		tunnelMgr: tm,
+		profiles:  profiles,
 	}
 
-	if cfg != nil {
+	switch {
+	case cfg != nil:
 		dymApp.setupConnectedUI()
-	} else {
+	case profiles != nil && len(profiles.Resources) > 0:
+		dymApp.showResources()
+	default:
 		dymApp.setupMissingConfigUI()
 	}
 
@@ -172,7 +178,10 @@ func (a *App) setupMissingConfigUI() {
 		}, a.window)
 	})
 
-	actions := container.NewHBox(btnCreateSample, btnSelectFile)
+	btnSignIn := widget.NewButtonWithIcon("Sign in with Dymmer", theme.LoginIcon(), a.signIn)
+	btnSignIn.Importance = widget.HighImportance
+
+	actions := container.NewHBox(btnSignIn, btnCreateSample, btnSelectFile)
 	content := container.NewVBox(
 		header,
 		desc,
@@ -248,6 +257,10 @@ func (a *App) Connect() {
 }
 
 func (a *App) openAdminInBrowser() {
+	// A provisioned resource has no web tunnel (Dymmer gives no Host header): nothing to open.
+	if a.config == nil || a.config.WordPress.HostHeader == "" {
+		return
+	}
 	adminURL := a.tunnelMgr.AdminURL()
 	parsedURL, err := url.Parse(adminURL)
 	if err == nil {

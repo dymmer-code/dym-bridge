@@ -24,6 +24,11 @@ Aplicación de escritorio multiplataforma (Windows, macOS y Linux) en Go diseña
 
 ---
 
+## Conexión con Dymmer
+
+Con una cuenta de Dymmer, pulsa **Sign in with Dymmer** (o `dym-bridge login`): la aplicación genera su propia clave,
+publica solo la clave pública y recibe los recursos a los que tienes acceso. Ver [docs/signin.md](docs/signin.md).
+
 ## Configuración (`dym-bridge.ini`)
 
 Cree un archivo llamado `dym-bridge.ini` junto al ejecutable:

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dymmer-code/dym-bridge/pkg/config"
+	"github.com/dymmer-code/dym-bridge/pkg/provision"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -27,7 +28,7 @@ func ConnectSSH(cfg *config.SSHConfig) (*SSHConnection, error) {
 	clientConfig := &ssh.ClientConfig{
 		User:            cfg.User,
 		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // Permits seamless initial connection
+		HostKeyCallback: hostKeyCallback(cfg),
 		Timeout:         15 * time.Second,
 	}
 
@@ -47,6 +48,19 @@ func ConnectSSH(cfg *config.SSHConfig) (*SSHConnection, error) {
 	go conn.keepAliveLoop(30 * time.Second)
 
 	return conn, nil
+}
+
+// hostKeyCallback trusts only the keys Dymmer reported when there are any; a manual .ini has none and keeps the
+// original behaviour (the first connection is accepted).
+func hostKeyCallback(cfg *config.SSHConfig) ssh.HostKeyCallback {
+	if len(cfg.HostKeys) == 0 {
+		return ssh.InsecureIgnoreHostKey()
+	}
+	keys := make([]provision.HostKey, 0, len(cfg.HostKeys))
+	for _, f := range cfg.HostKeys {
+		keys = append(keys, provision.HostKey{Fingerprint: f})
+	}
+	return provision.HostKeyCallback(keys)
 }
 
 func buildAuthMethods(cfg *config.SSHConfig) ([]ssh.AuthMethod, error) {
