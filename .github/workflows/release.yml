@@ -28,7 +28,7 @@ jobs:
           go-version-file: go.mod
       - name: Libraries the window toolkit needs
         if: matrix.goos == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols
       - name: Test
         run: go test ./...
       - name: Build and package

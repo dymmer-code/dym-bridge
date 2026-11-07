@@ -17,6 +17,6 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Libraries the window toolkit needs
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols
       - run: go vet ./...
       - run: go test ./...
