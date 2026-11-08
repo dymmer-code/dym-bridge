@@ -5,6 +5,7 @@ import (
 	"github.com/gogpu/ui/core/toolbar"
 	"github.com/gogpu/ui/event"
 	"github.com/gogpu/ui/geometry"
+	"github.com/gogpu/ui/overlay"
 	"github.com/gogpu/ui/theme/fluent"
 	"github.com/gogpu/ui/widget"
 )
@@ -14,10 +15,11 @@ import (
 // the toolbar's layout or enabling actions that cannot run.
 type paneToolbar struct {
 	*toolbar.Widget
-	theme   *fluent.Theme
-	targets []toolbar.PaintButtonState
-	tip     *toolbarHelp
-	manager widget.OverlayManager
+	theme    *fluent.Theme
+	targets  []toolbar.PaintButtonState
+	tip      *toolbarHelp
+	manager  widget.OverlayManager
+	overlays *overlay.Stack
 }
 type helpPainter struct {
 	paneToolbarPainter
@@ -73,6 +75,9 @@ func (w *paneToolbar) showHelp(ctx widget.Context, point geometry.Point) {
 		}
 		w.hideHelp()
 		manager := ctx.OverlayManager()
+		if w.overlays != nil {
+			manager = &helpOverlayManager{stack: w.overlays, ctx: ctx}
+		}
 		if manager == nil {
 			return
 		}

@@ -185,6 +185,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		toolbar.Separator(), disabled(transferLabel, transferIcon),
 		toolbar.Spacer(), toolbar.Custom(b.text(subtitle, 11)),
 	)
+	actions.overlays = b.ui.Window().Overlays()
 	columns := p.HBox(p.Box().Width(20), p.Box().Width(16), p.Expanded(b.text("Name", 11)), p.Box(b.text("Size", 11)).Width(66), p.Box(b.text("Modified", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
 	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
 	return p.VBox(heading, actions, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)

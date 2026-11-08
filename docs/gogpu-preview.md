@@ -135,3 +135,15 @@ Pane headers use monitor/server vector icons beside their paths instead of
 text titles. English accessibility labels retain the pane identities. User file
 names and paths are displayed verbatim. Tests/vet and the CGo-free preview bundle
 pass; the rebuilt macOS window was inspected for icons and English labels.
+
+## Passive tooltips (#432)
+
+The toolkit's default overlay container consumed outside mouse presses when
+closing the help, preventing toolbar buttons from receiving their press event.
+Toolbar help now uses a passive container on the same overlay stack: dismissal
+returns false so the original event reaches the underlying button. No replayed
+clicks or extra selection changes. A regression test sends four consecutive
+press/release pairs through the real overlay stack, opening help before each;
+the selection alternates all/none on every pair. The original behavior failed
+on the first click. macOS verification confirmed one click selects four demo
+rows and the next clears them. preview-test and CGo-free preview-bundle pass.
