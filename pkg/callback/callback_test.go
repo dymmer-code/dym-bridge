@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,7 @@ func TestSendReachesTheWaitingProcess(t *testing.T) {
 	defer func() { _ = r.Close() }()
 
 	info, _ := os.Stat(path)
-	if info.Mode().Perm() != 0o600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 		t.Fatalf("announcement mode %v", info.Mode().Perm())
 	}
 	const uri = "dym-bridge://callback?code=abc&state=xyz"
