@@ -169,3 +169,15 @@ ellipsis. This is presentation-only; navigation keeps the full original path.
 Tests cover POSIX, Windows separators, Unicode, roots and very narrow widths.
 preview-test and CGo-free preview-bundle pass. macOS resizing verified a long
 module path compacted to /Users/…/pkg/mod/github.com/gogpu/ui@v0.1.55/core/popover.
+
+## File type icons (#435)
+
+Rows classify extensions case-insensitively without opening file contents.
+Images, audio and video use distinct vector pictograms; PHP, HTML, CSS, JS/TS,
+Go, JSON, Markdown, configuration, PDF, archives and other source/document types
+use compact colored badges. Folders take precedence over extensions and unknown
+formats retain a generic icon. Colors are lightened in dark mode; accessibility
+labels remain English. Static geometry and extension maps add no dependencies,
+thumbnail decoding or per-file bitmap cache. Classification tests, preview-test
+and CGo-free bundle pass. Inspected all requested types using 14 empty fixture
+files under /tmp/dym-bridge-icon-preview in the macOS window.

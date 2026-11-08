@@ -118,15 +118,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 			size = "—"
 		}
 		name := b.text(item.Name, 13)
-		image := documentIcon
-		tint := cs.OnSurfaceSecond
-		label := "File"
-		if item.IsDir {
-			image = icon.FolderClosed
-			tint = cs.Accent
-			label = "Folder"
-		}
-		glyph := icon.NewIcon(image, icon.Size(16), icon.Color(tint), icon.Label(label))
+		glyph := b.fileGlyph(item.Name, item.IsDir)
 		check := checkbox.New(checkbox.Checked(m.IsSelected(item.Path)), checkbox.A11yHint("Select "+item.Name), checkbox.PainterOpt(fluent.CheckboxPainter{Theme: b.theme}))
 		row := p.HBox(p.Box(check).Width(20).Height(18), glyph, p.Expanded(name), p.Box(b.text(size, 11)).Width(66), p.Box(b.text(item.ModTime.Format("02/01/06 15:04"), 11)).Width(100)).PaddingXY(10, 5).Gap(8)
 
@@ -186,7 +178,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		toolbar.Spacer(), toolbar.Custom(b.text(subtitle, 11)),
 	)
 	actions.overlays = b.ui.Window().Overlays()
-	columns := p.HBox(p.Box().Width(20), p.Box().Width(16), p.Expanded(b.text("Name", 11)), p.Box(b.text("Size", 11)).Width(66), p.Box(b.text("Modified", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
+	columns := p.HBox(p.Box().Width(20), p.Box().Width(20), p.Expanded(b.text("Name", 11)), p.Box(b.text("Size", 11)).Width(66), p.Box(b.text("Modified", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
 	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
 	return p.VBox(heading, actions, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
 }
