@@ -13,6 +13,7 @@ import (
 	"github.com/gogpu/ui/core/button"
 	"github.com/gogpu/ui/core/listview"
 	"github.com/gogpu/ui/core/textfield"
+	"github.com/gogpu/ui/core/toolbar"
 	"github.com/gogpu/ui/desktop"
 	"github.com/gogpu/ui/icon"
 	p "github.com/gogpu/ui/primitives"
@@ -104,7 +105,10 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	list := &fileList{model: m, clicked: -1, activate: func(dir string) { b.navigate(m, dir) }}
 	count := state.NewSignal(len(m.Visible))
 	summary := state.NewSignal(fmt.Sprintf("%d elementos", len(m.Visible)))
-	list.Widget = listview.New(listview.OnItemClick(func(i int) { list.clicked = i }), listview.ItemCountSignal(count), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(false), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
+	updateSummary := func() {
+		summary.Set(fmt.Sprintf("%d elementos · %d seleccionados", len(m.Visible), m.SelectionCount()))
+	}
+	list.Widget = listview.New(listview.OnItemClick(func(i int) { list.clicked = i; m.Select(i); list.InvalidateData(); updateSummary() }), listview.ItemCountSignal(count), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(false), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
 		if ctx.Index >= len(m.Visible) {
 			return p.Box()
 		}
@@ -128,13 +132,15 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		if ctx.Index%2 == 1 {
 			row.Background(cs.SurfaceSecondary)
 		}
-		if ctx.Selected {
+		if m.IsSelected(item.Path) {
 			row.Background(cs.AccentLight)
 		}
 
 		return row
 	}), listview.OnSelectionChange(func(i int) {
 		m.Select(i)
+		list.InvalidateData()
+		updateSummary()
 		if item := m.Selected(); item != nil {
 			b.status.Set(item.Name + " · " + sftp.FormatFileSize(item.Size) + " · " + item.Path)
 		}
@@ -147,22 +153,19 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		list.InvalidateData()
 		b.selection.Set("Selecciona un archivo para ver sus detalles")
 	}))
-	up := b.action("↑", false, func() {
-		parent := filepath.Dir(m.Path)
+	parent := func() {
+		dir := filepath.Dir(m.Path)
 		if m.Demo {
-			parent = path.Dir(m.Path)
+			dir = path.Dir(m.Path)
 		}
-		b.navigate(m, parent)
-	})
-	open := b.action("Abrir", false, func() {
-		if item := m.Selected(); item != nil && item.IsDir {
-			b.navigate(m, item.Path)
-		} else {
-			b.status.Set("Selecciona una carpeta y pulsa Abrir carpeta")
-		}
-	})
+		b.navigate(m, dir)
+	}
+	navigation := toolbar.New(toolbar.Height(32), toolbar.ButtonSize(28), toolbar.PainterOpt(paneToolbarPainter{theme: b.theme}), toolbar.Items(
+		toolbar.IconButton("Carpeta superior", upIcon, parent),
+		toolbar.IconButton("Actualizar", icon.Refresh, func() { b.navigate(m, m.Path) }),
+	))
 	heading := p.HBox(p.Expanded(b.text(title, 13).Bold()), b.text(subtitle, 11)).PaddingXY(10, 6).Gap(8).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
-	pathbar := p.HBox(up, p.Expanded(b.text(m.Path, 12)), b.action("Actualizar", false, func() { b.navigate(m, m.Path) }), open).PaddingXY(4, 0).Gap(4).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
+	pathbar := p.HBox(p.Box(navigation).Width(64), p.Expanded(b.text(m.Path, 12))).PaddingXY(4, 0).Gap(6).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
 	shortcuts := []widget.Widget{}
 	if m.Demo {
 		for _, name := range []string{"wp-content", "themes", "plugins", "uploads"} {
@@ -180,8 +183,30 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 			}
 		}
 	}
-	searchbar := p.HBox(p.Expanded(p.HBox(shortcuts...).Gap(2)), p.Box(query).Width(180).Height(32)).PaddingXY(6, 3).Gap(6).CrossAlign(p.CrossAxisCenter)
+	shortcutsBar := p.HBox(p.Expanded(p.HBox(shortcuts...).Gap(2)), p.Box(query).Width(180).Height(32)).PaddingXY(6, 3).Gap(6).CrossAlign(p.CrossAxisCenter)
+	transferLabel := "Subir"
+	transferIcon := upIcon
+	if m.Demo {
+		transferLabel = "Descargar"
+		transferIcon = downIcon
+	}
+	disabled := func(label string, image icon.IconData) toolbar.Item {
+		item := toolbar.TextIconButton(label, image, nil)
+		item.Enabled = false
+		return item
+	}
+	actions := toolbar.New(toolbar.Height(34), toolbar.ButtonSize(28), toolbar.Gap(4), toolbar.PainterOpt(paneToolbarPainter{theme: b.theme}), toolbar.Items(
+		toolbar.TextIconButton("Todo", icon.Check, func() {
+			m.ToggleAll()
+			list.clicks = clickTracker{}
+			list.InvalidateData()
+			updateSummary()
+			b.status.Set(fmt.Sprintf("%d elementos seleccionados en %s", m.SelectionCount(), title))
+		}),
+		toolbar.Separator(), disabled("Nueva carpeta", icon.FolderClosed), disabled("Eliminar", icon.Delete),
+		toolbar.Spacer(), toolbar.Separator(), disabled(transferLabel, transferIcon),
+	))
 	columns := p.HBox(p.Box().Width(16), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
 	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
-	return p.VBox(heading, b.rule(), pathbar, searchbar, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
+	return p.VBox(heading, b.rule(), pathbar, shortcutsBar, b.rule(), actions, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
 }

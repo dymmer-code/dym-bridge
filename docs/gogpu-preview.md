@@ -18,13 +18,14 @@ open 'bin/Dym Bridge Preview.app'
 ```
 
 The left pane lists real local files using the existing local/SFTP item model.
-The right pane is explicitly labeled demonstration data. Select a folder and
-press **Abrir carpeta**; **Subir** goes to its parent. Search filters each pane.
-The sidebar provides local shortcuts, a light/dark theme switch and a synthetic
-10,000-file workload. Lists are virtualized with fixed row heights.
+The right pane is explicitly labeled demonstration data. Double-click a folder
+or press Enter to open it; the parent-folder arrow navigates up. Search filters
+each pane. Local shortcuts sit above the list; the window header provides a
+light/dark theme switch and a synthetic 10,000-file workload. Lists are virtualized
+with fixed row heights.
 
 No credentials are loaded, no SSH connection is made, and no file is changed.
-Transfers, login, tray integration, native file drops, multiselection and real
+Transfers, login, tray integration, native file drops, modifier-key multiselection and real
 remote browsing are not wired up. The transfer area explains that limitation.
 
 ## Verification
@@ -79,3 +80,18 @@ row, and page deltas use a nominal 560px page. It compensates for ScrollView's
 changed. Re-evaluate the adapter when upgrading the toolkit.
 
 Rows now use 16px vector folder/document icons, independent of font glyphs.
+
+## Per-pane toolbars (#426)
+
+Navigation (parent and refresh) sits beside the path. A separate compact action
+bar above each file table groups selection, editing and transfer with vector
+icons and separators: Todo, Nueva carpeta, Eliminar, and Subir/Descargar.
+Native GoGPU toolbar widgets use a painter matching the current Fluent palette.
+
+Todo toggles selection of all visible results; a single row click returns to
+single selection. Filtering clears selection and the footer reports its count.
+New-folder, delete and transfer actions remain visibly disabled because this
+preview has no write/transfer integration. No extra dependencies or CGo added.
+
+Verified with selection model regression tests, make preview-test, and
+make preview-bundle. Inspected the macOS window and selected all four demo rows.

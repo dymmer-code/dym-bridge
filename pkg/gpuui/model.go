@@ -17,6 +17,7 @@ type Model struct {
 	Items, Visible []sftp.Item
 	Query          string
 	selected       int
+	selectedPaths  map[string]bool
 	Demo           bool
 }
 
@@ -46,6 +47,7 @@ func (m *Model) Navigate(dir string) error {
 func (m *Model) Filter(query string) {
 	m.Query = query
 	m.selected = -1
+	m.selectedPaths = nil
 	m.Visible = nil
 	for _, item := range m.Items {
 		if strings.Contains(strings.ToLower(item.Name), strings.ToLower(query)) {
@@ -53,7 +55,25 @@ func (m *Model) Filter(query string) {
 		}
 	}
 }
-func (m *Model) Select(index int) { m.selected = index }
+func (m *Model) Select(index int) {
+	m.selected = index
+	m.selectedPaths = map[string]bool{}
+	if item := m.Selected(); item != nil {
+		m.selectedPaths[item.Path] = true
+	}
+}
+func (m *Model) IsSelected(path string) bool { return m.selectedPaths[path] }
+func (m *Model) SelectionCount() int         { return len(m.selectedPaths) }
+func (m *Model) ToggleAll() {
+	clear := len(m.selectedPaths) == len(m.Visible)
+	m.selected = -1
+	m.selectedPaths = map[string]bool{}
+	if !clear {
+		for _, item := range m.Visible {
+			m.selectedPaths[item.Path] = true
+		}
+	}
+}
 func (m *Model) Selected() *sftp.Item {
 	if m.selected < 0 || m.selected >= len(m.Visible) {
 		return nil

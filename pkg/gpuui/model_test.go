@@ -72,3 +72,29 @@ func TestDemoNavigationAndStress(t *testing.T) {
 		t.Fatal(len(m.Visible))
 	}
 }
+
+func TestSelectAllVisibleAndClear(t *testing.T) {
+	m := NewDemoModel()
+	m.Filter("themes")
+	m.ToggleAll()
+	if m.SelectionCount() != 1 || !m.IsSelected(m.Visible[0].Path) {
+		t.Fatal("must select only visible items")
+	}
+	m.ToggleAll()
+	if m.SelectionCount() != 0 {
+		t.Fatal("toggle must clear selection")
+	}
+	m.Filter("")
+	m.ToggleAll()
+	if m.SelectionCount() != 4 {
+		t.Fatal("must select all four entries")
+	}
+	m.Select(0)
+	if m.SelectionCount() != 1 {
+		t.Fatal("single click must replace selection")
+	}
+	m.Filter("uploads")
+	if m.SelectionCount() != 0 {
+		t.Fatal("filter must clear stale selection")
+	}
+}
