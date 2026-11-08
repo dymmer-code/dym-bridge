@@ -8,6 +8,8 @@ import (
 	"github.com/gogpu/ui/widget"
 )
 
+var newFolderIcon = icon.FromSVG("new-folder", 24, "M2 5 L9 5 L11 8 L22 8 L22 21 L2 21 Z M15 11 L15 18 M11.5 14.5 L18.5 14.5")
+
 var upIcon = icon.FromSVG("up", 24, "M12 4 L5 11 L7 13 L11 9 L11 20 L13 20 L13 9 L17 13 L19 11 Z")
 var downIcon = icon.FromSVG("down", 24, "M12 20 L5 13 L7 11 L11 15 L11 4 L13 4 L13 15 L17 11 L19 13 Z")
 

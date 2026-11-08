@@ -19,8 +19,7 @@ open 'bin/Dym Bridge Preview.app'
 
 The left pane lists real local files using the existing local/SFTP item model.
 The right pane is explicitly labeled demonstration data. Double-click a folder
-or press Enter to open it; the parent-folder arrow navigates up. Search filters
-each pane. Local shortcuts sit above the list; the window header provides a
+or press Enter to open it; the parent-folder arrow navigates up. The window header provides a
 light/dark theme switch and a synthetic 10,000-file workload. Lists are virtualized
 with fixed row heights.
 
@@ -95,3 +94,14 @@ preview has no write/transfer integration. No extra dependencies or CGo added.
 
 Verified with selection model regression tests, make preview-test, and
 make preview-bundle. Inspected the macOS window and selected all four demo rows.
+
+## Two-row pane headers (#427)
+
+Supersedes the toolbar layout in #426: each pane now has one identity/path row
+and one 32px icon toolbar. Removed the search field and separate shortcut row.
+Commands stay together in the familiar order: parent, refresh, select all, new
+folder, delete, upload/download. Read-only/demo status sits at the trailing edge.
+Write actions remain disabled. The file table gains the space previously used
+by the extra rows. No new dependencies or behavioral changes to navigation.
+Verified with make preview-test, preview-bundle (CGo disabled), and inspection
+of the rebuilt macOS window.

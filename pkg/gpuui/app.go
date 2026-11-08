@@ -5,14 +5,12 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/dymmer-code/dym-bridge/pkg/local"
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 	_ "github.com/gogpu/gg/gpu"
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/ui/app"
 	"github.com/gogpu/ui/core/button"
 	"github.com/gogpu/ui/core/listview"
-	"github.com/gogpu/ui/core/textfield"
 	"github.com/gogpu/ui/core/toolbar"
 	"github.com/gogpu/ui/desktop"
 	"github.com/gogpu/ui/icon"
@@ -145,14 +143,6 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 			b.status.Set(item.Name + " · " + sftp.FormatFileSize(item.Size) + " · " + item.Path)
 		}
 	}))
-	query := textfield.New(textfield.Placeholder("Filtrar archivos…"), textfield.InitialValue(m.Query), textfield.A11yLabel("Buscar en "+title), textfield.PainterOpt(fluent.TextFieldPainter{Theme: b.theme}), textfield.OnChange(func(q string) {
-		m.Filter(q)
-		list.clicks = clickTracker{}
-		count.Set(len(m.Visible))
-		summary.Set(fmt.Sprintf("%d de %d elementos", len(m.Visible), len(m.Items)))
-		list.InvalidateData()
-		b.selection.Set("Selecciona un archivo para ver sus detalles")
-	}))
 	parent := func() {
 		dir := filepath.Dir(m.Path)
 		if m.Demo {
@@ -160,30 +150,8 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		}
 		b.navigate(m, dir)
 	}
-	navigation := toolbar.New(toolbar.Height(32), toolbar.ButtonSize(28), toolbar.PainterOpt(paneToolbarPainter{theme: b.theme}), toolbar.Items(
-		toolbar.IconButton("Carpeta superior", upIcon, parent),
-		toolbar.IconButton("Actualizar", icon.Refresh, func() { b.navigate(m, m.Path) }),
-	))
-	heading := p.HBox(p.Expanded(b.text(title, 13).Bold()), b.text(subtitle, 11)).PaddingXY(10, 6).Gap(8).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
-	pathbar := p.HBox(p.Box(navigation).Width(64), p.Expanded(b.text(m.Path, 12))).PaddingXY(4, 0).Gap(6).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
-	shortcuts := []widget.Widget{}
-	if m.Demo {
-		for _, name := range []string{"wp-content", "themes", "plugins", "uploads"} {
-			dir := "/wp-content"
-			if name != "wp-content" {
-				dir = path.Join(dir, name)
-			}
-			shortcuts = append(shortcuts, b.action(name, false, func() { b.navigate(m, dir) }))
-		}
-	} else {
-		dirs := local.CommonDirectories()
-		for _, entry := range []struct{ key, label string }{{"Home", "Inicio"}, {"Downloads", "Descargas"}, {"Documents", "Documentos"}} {
-			if dir, ok := dirs[entry.key]; ok {
-				shortcuts = append(shortcuts, b.action(entry.label, false, func() { b.navigate(m, dir) }))
-			}
-		}
-	}
-	shortcutsBar := p.HBox(p.Expanded(p.HBox(shortcuts...).Gap(2)), p.Box(query).Width(180).Height(32)).PaddingXY(6, 3).Gap(6).CrossAlign(p.CrossAxisCenter)
+	// Two rows only: identity/path, then familiar compact file commands.
+	heading := p.HBox(b.text(title, 12).Bold(), p.Expanded(b.text(m.Path, 12))).PaddingXY(10, 5).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
 	transferLabel := "Subir"
 	transferIcon := upIcon
 	if m.Demo {
@@ -191,22 +159,26 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		transferIcon = downIcon
 	}
 	disabled := func(label string, image icon.IconData) toolbar.Item {
-		item := toolbar.TextIconButton(label, image, nil)
+		item := toolbar.IconButton(label, image, nil)
 		item.Enabled = false
 		return item
 	}
-	actions := toolbar.New(toolbar.Height(34), toolbar.ButtonSize(28), toolbar.Gap(4), toolbar.PainterOpt(paneToolbarPainter{theme: b.theme}), toolbar.Items(
-		toolbar.TextIconButton("Todo", icon.Check, func() {
+	actions := toolbar.New(toolbar.Height(32), toolbar.ButtonSize(28), toolbar.Gap(3), toolbar.PainterOpt(paneToolbarPainter{theme: b.theme}), toolbar.Items(
+		toolbar.IconButton("Carpeta superior", upIcon, parent),
+		toolbar.IconButton("Actualizar", icon.Refresh, func() { b.navigate(m, m.Path) }),
+		toolbar.Separator(),
+		toolbar.IconButton("Seleccionar/deseleccionar todo", icon.Check, func() {
 			m.ToggleAll()
 			list.clicks = clickTracker{}
 			list.InvalidateData()
 			updateSummary()
 			b.status.Set(fmt.Sprintf("%d elementos seleccionados en %s", m.SelectionCount(), title))
 		}),
-		toolbar.Separator(), disabled("Nueva carpeta", icon.FolderClosed), disabled("Eliminar", icon.Delete),
-		toolbar.Spacer(), toolbar.Separator(), disabled(transferLabel, transferIcon),
+		disabled("Nueva carpeta", newFolderIcon), disabled("Eliminar", icon.Delete),
+		toolbar.Separator(), disabled(transferLabel, transferIcon),
+		toolbar.Spacer(), toolbar.Custom(b.text(subtitle, 11)),
 	))
 	columns := p.HBox(p.Box().Width(16), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
 	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
-	return p.VBox(heading, b.rule(), pathbar, shortcutsBar, b.rule(), actions, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
+	return p.VBox(heading, actions, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
 }
