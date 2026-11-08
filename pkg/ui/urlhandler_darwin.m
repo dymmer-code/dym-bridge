@@ -1,4 +1,4 @@
-//go:build darwin
+//go:build fyne && darwin
 
 #import <Cocoa/Cocoa.h>
 #include "urlhandler_darwin.h"

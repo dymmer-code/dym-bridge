@@ -29,6 +29,7 @@ func (p *Profiles) Config(index int) (*config.Config, error) {
 	}
 	cfg := &config.Config{
 		Provisioned: true,
+		Tunnels:     append([]config.Tunnel(nil), r.Tunnels...),
 		SSH: config.SSHConfig{
 			Host:     r.Address,
 			Port:     r.Port,

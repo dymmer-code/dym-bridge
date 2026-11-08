@@ -44,6 +44,7 @@ type SFTPConfig struct {
 }
 
 type Config struct {
+	Tunnels    []Tunnel        `ini:"-"`
 	SSH        SSHConfig       `ini:"ssh"`
 	WordPress  WordPressConfig `ini:"wordpress"`
 	SFTP       SFTPConfig      `ini:"sftp"`
@@ -170,6 +171,9 @@ func (c *Config) Unlock(masterPassword string) error {
 
 // Validate checks that required fields are present and valid.
 func (c *Config) Validate() error {
+	if err := ValidateTunnels(c.Tunnels); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.SSH.Host) == "" {
 		return ErrMissingSSHHost
 	}
