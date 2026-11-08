@@ -114,3 +114,15 @@ Fluent colors and window-space positioning; it disappears on leave, press,
 keyboard input or unmount. It does not enable disabled commands or change layout.
 The wrapper records actual painted item bounds rather than duplicating layout.
 Tests cover disabled help, stable hover, leaving the button and unmount cleanup.
+
+## Checkbox selection (#430)
+
+Each row now starts with a Fluent checkbox. Clicking its checkbox toggles only
+that item; clicking the name moves focus without replacing checked items.
+Space toggles the focused row, Enter/double-click on the name opens folders.
+Checkbox clicks reset double-click tracking and never navigate. Select-all and
+footer counts use the same checked-path set. Navigation clears that directory's
+selection; rebuilding the same view preserves checked items and their count.
+Regression tests exercise multiple checks, unchecking, independent focus,
+Space, double-click navigation, and select-all/clear. macOS inspection confirmed
+visible checkboxes and a checked row with the corresponding footer count.

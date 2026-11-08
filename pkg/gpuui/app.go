@@ -10,6 +10,7 @@ import (
 	"github.com/gogpu/gogpu"
 	"github.com/gogpu/ui/app"
 	"github.com/gogpu/ui/core/button"
+	"github.com/gogpu/ui/core/checkbox"
 	"github.com/gogpu/ui/core/listview"
 	"github.com/gogpu/ui/core/toolbar"
 	"github.com/gogpu/ui/desktop"
@@ -102,11 +103,12 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	cs := b.theme.Colors
 	list := &fileList{model: m, clicked: -1, activate: func(dir string) { b.navigate(m, dir) }}
 	count := state.NewSignal(len(m.Visible))
-	summary := state.NewSignal(fmt.Sprintf("%d elementos", len(m.Visible)))
+	summary := state.NewSignal(fmt.Sprintf("%d elementos · %d seleccionados", len(m.Visible), m.SelectionCount()))
 	updateSummary := func() {
 		summary.Set(fmt.Sprintf("%d elementos · %d seleccionados", len(m.Visible), m.SelectionCount()))
 	}
-	list.Widget = listview.New(listview.OnItemClick(func(i int) { list.clicked = i; m.Select(i); list.InvalidateData(); updateSummary() }), listview.ItemCountSignal(count), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(false), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
+	list.changed = updateSummary
+	list.Widget = listview.New(listview.OnItemClick(func(i int) { list.clicked = i; m.Focus(i); list.InvalidateData(); updateSummary() }), listview.ItemCountSignal(count), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(false), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
 		if ctx.Index >= len(m.Visible) {
 			return p.Box()
 		}
@@ -125,7 +127,8 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 			label = "Carpeta"
 		}
 		glyph := icon.NewIcon(image, icon.Size(16), icon.Color(tint), icon.Label(label))
-		row := p.HBox(glyph, p.Expanded(name), p.Box(b.text(size, 11)).Width(66), p.Box(b.text(item.ModTime.Format("02/01/06 15:04"), 11)).Width(100)).PaddingXY(10, 5).Gap(8)
+		check := checkbox.New(checkbox.Checked(m.IsSelected(item.Path)), checkbox.A11yHint("Seleccionar "+item.Name), checkbox.PainterOpt(fluent.CheckboxPainter{Theme: b.theme}))
+		row := p.HBox(p.Box(check).Width(20).Height(18), glyph, p.Expanded(name), p.Box(b.text(size, 11)).Width(66), p.Box(b.text(item.ModTime.Format("02/01/06 15:04"), 11)).Width(100)).PaddingXY(10, 5).Gap(8)
 
 		if ctx.Index%2 == 1 {
 			row.Background(cs.SurfaceSecondary)
@@ -136,7 +139,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 
 		return row
 	}), listview.OnSelectionChange(func(i int) {
-		m.Select(i)
+		m.Focus(i)
 		list.InvalidateData()
 		updateSummary()
 		if item := m.Selected(); item != nil {
@@ -178,7 +181,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		toolbar.Separator(), disabled(transferLabel, transferIcon),
 		toolbar.Spacer(), toolbar.Custom(b.text(subtitle, 11)),
 	)
-	columns := p.HBox(p.Box().Width(16), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
+	columns := p.HBox(p.Box().Width(20), p.Box().Width(16), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
 	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
 	return p.VBox(heading, actions, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
 }

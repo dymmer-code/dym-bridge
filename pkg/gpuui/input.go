@@ -68,11 +68,15 @@ type fileList struct {
 	clicks   clickTracker
 	clicked  int
 	activate func(string)
+	changed  func()
 }
 
 func (l *fileList) Event(ctx widget.Context, e event.Event) bool {
 	l.clicked = -1
 	consumed := l.Widget.Event(ctx, e)
+	if mouse, ok := e.(*event.MouseEvent); ok && mouse.MouseType == event.MousePress && mouse.Button == event.ButtonLeft && l.clicked >= 0 {
+		ctx.RequestFocus(l)
+	}
 	if wheel, ok := e.(*event.WheelEvent); ok && (wheel.Delta.X != 0 || wheel.Delta.Y != 0) {
 		l.clicks = clickTracker{}
 	}
@@ -84,13 +88,31 @@ func (l *fileList) Event(ctx widget.Context, e event.Event) bool {
 	switch ev := e.(type) {
 	case *event.MouseEvent:
 		if ev.MouseType == event.MousePress && ev.Button == event.ButtonLeft {
+			x := ev.Position.X - l.Bounds().Min.X
+			if x >= 6 && x < 34 {
+				l.toggleChecked(l.clicked)
+				return true
+			}
 			activate = l.clicks.click(item.Path, ev.Time(), ev.Position.X, ev.Position.Y)
 		}
 	case *event.KeyEvent:
+		if ev.KeyType == event.KeyPress && ev.Key == event.KeySpace {
+			l.toggleChecked(l.clicked)
+			return true
+		}
 		activate = ev.KeyType == event.KeyPress && ev.Key == event.KeyEnter
 	}
 	if activate && item.IsDir {
 		l.activate(item.Path)
 	}
 	return consumed
+}
+
+func (l *fileList) toggleChecked(index int) {
+	l.model.Toggle(index)
+	l.clicks = clickTracker{}
+	l.InvalidateData()
+	if l.changed != nil {
+		l.changed()
+	}
 }

@@ -55,6 +55,23 @@ func (m *Model) Filter(query string) {
 		}
 	}
 }
+
+// Focus tracks keyboard/navigation independently of checked files.
+func (m *Model) Focus(index int) { m.selected = index }
+func (m *Model) Toggle(index int) {
+	if index < 0 || index >= len(m.Visible) {
+		return
+	}
+	if m.selectedPaths == nil {
+		m.selectedPaths = map[string]bool{}
+	}
+	path := m.Visible[index].Path
+	if m.selectedPaths[path] {
+		delete(m.selectedPaths, path)
+	} else {
+		m.selectedPaths[path] = true
+	}
+}
 func (m *Model) Select(index int) {
 	m.selected = index
 	m.selectedPaths = map[string]bool{}
