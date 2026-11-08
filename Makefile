@@ -88,10 +88,12 @@ bundle-arch:
 	@$(MACOS_ENV) GOARCH=$(ARCH) go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/dym-bridge
 	@$(MAKE) --no-print-directory bundle-assemble
 
+PYTHON ?= python3
 DMG_PYTHON ?= $(CURDIR)/bin/dmg-venv/bin/python
 
 dmg-deps:
-	python3 -m venv bin/dmg-venv
+	$(PYTHON) -c 'import sys; sys.exit("DMG packaging requires Python 3.12+; set PYTHON=/path/to/python3") if sys.version_info < (3, 12) else None'
+	$(PYTHON) -m venv --clear bin/dmg-venv
 	bin/dmg-venv/bin/python -m pip install -r packaging/macos/dmg/requirements.txt
 
 dmg: bundle

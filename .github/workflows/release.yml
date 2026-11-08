@@ -28,6 +28,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        if: matrix.goos == 'darwin'
+        with:
+          python-version: "3.12"
       - name: DMG tools
         if: matrix.goos == 'darwin'
         run: make dmg-deps
