@@ -64,3 +64,18 @@ bars contain paths, parent/open/refresh actions, shortcuts and filtering.
 Selection details appear in the status bar; transfers expand only on request.
 A constrained text renderer clips/ellipsizes long names so columns do not overlap.
 The existing read-only/demo scope and integration limitations still apply.
+
+## File interaction (#425)
+
+Folders open with a double left click on the same row (within 500 ms and 4 px),
+or Enter after selecting them. A single click selects; files are not executed.
+Scrolling or changing the filter resets the pending click pair. Navigation runs
+only after the old list finishes dispatching its input event.
+
+The input adapter preserves rich pointer/gesture events and fixes GoGPU UI
+v0.1.55's scroll unit loss: pixel deltas remain pixels, line deltas move one 28px
+row, and page deltas use a nominal 560px page. It compensates for ScrollView's
+40x multiplier before the bridge discards DeltaMode. No system mouse setting is
+changed. Re-evaluate the adapter when upgrading the toolkit.
+
+Rows now use 16px vector folder/document icons, independent of font glyphs.

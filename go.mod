@@ -7,6 +7,7 @@ require (
 	fyne.io/systray v1.12.3-0.20260810170012-af4e8e793ec4
 	github.com/gogpu/gg v0.52.6
 	github.com/gogpu/gogpu v0.54.1
+	github.com/gogpu/gpucontext v0.31.3
 	github.com/gogpu/ui v0.1.55
 	github.com/pkg/sftp v1.13.11
 	golang.org/x/crypto v0.57.0
@@ -33,7 +34,6 @@ require (
 	github.com/go-webgpu/goffi v0.6.8 // indirect
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
-	github.com/gogpu/gpucontext v0.31.3 // indirect
 	github.com/gogpu/gputypes v0.8.2 // indirect
 	github.com/gogpu/naga v0.21.4 // indirect
 	github.com/gogpu/wgpu v0.34.9 // indirect

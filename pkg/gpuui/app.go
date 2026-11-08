@@ -14,11 +14,14 @@ import (
 	"github.com/gogpu/ui/core/listview"
 	"github.com/gogpu/ui/core/textfield"
 	"github.com/gogpu/ui/desktop"
+	"github.com/gogpu/ui/icon"
 	p "github.com/gogpu/ui/primitives"
 	"github.com/gogpu/ui/state"
 	"github.com/gogpu/ui/theme/fluent"
 	"github.com/gogpu/ui/widget"
 )
+
+var documentIcon = icon.FromSVG("document", 24, "M6 3 L15 3 L19 7 L19 21 L6 21 Z M15 3 L15 7 L19 7 M9 11 L16 11 M9 14 L16 14 M9 17 L14 17")
 
 type browser struct {
 	ui            *app.App
@@ -39,7 +42,7 @@ func Run(dir string) error {
 	}
 	b.gpu = gogpu.NewApp(gogpu.DefaultConfig().WithTitle("Dym Bridge · Vista previa GoGPU").WithSize(1180, 760))
 	b.setTheme()
-	b.ui = app.New(app.WithWindowProvider(b.gpu), app.WithPlatformProvider(b.gpu), app.WithEventSource(b.gpu.EventSource()), app.WithTheme(b.theme.AsTheme()))
+	b.ui = app.New(app.WithWindowProvider(b.gpu), app.WithPlatformProvider(b.gpu), app.WithEventSource(adaptInput(b.gpu.EventSource())), app.WithTheme(b.theme.AsTheme()))
 	b.rebuild()
 	return desktop.Run(b.gpu, b.ui)
 }
@@ -98,10 +101,10 @@ func (b *browser) rebuild() {
 }
 func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	cs := b.theme.Colors
-	var list *listview.Widget
+	list := &fileList{model: m, clicked: -1, activate: func(dir string) { b.navigate(m, dir) }}
 	count := state.NewSignal(len(m.Visible))
 	summary := state.NewSignal(fmt.Sprintf("%d elementos", len(m.Visible)))
-	list = listview.New(listview.ItemCountSignal(count), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(false), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
+	list.Widget = listview.New(listview.OnItemClick(func(i int) { list.clicked = i }), listview.ItemCountSignal(count), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(false), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
 		if ctx.Index >= len(m.Visible) {
 			return p.Box()
 		}
@@ -111,13 +114,17 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 			size = "—"
 		}
 		name := b.text(item.Name, 13)
-		marker := "·"
-		markerColor := cs.OnSurfaceSecond
+		image := documentIcon
+		tint := cs.OnSurfaceSecond
+		label := "Archivo"
 		if item.IsDir {
-			marker = "/"
-			markerColor = cs.Accent
+			image = icon.FolderClosed
+			tint = cs.Accent
+			label = "Carpeta"
 		}
-		row := p.HBox(p.Box(p.Text(marker).FontSize(13).Color(markerColor)).Width(12), p.Expanded(name), p.Box(b.text(size, 11)).Width(66), p.Box(b.text(item.ModTime.Format("02/01/06 15:04"), 11)).Width(100)).PaddingXY(10, 5).Gap(8)
+		glyph := icon.NewIcon(image, icon.Size(16), icon.Color(tint), icon.Label(label))
+		row := p.HBox(glyph, p.Expanded(name), p.Box(b.text(size, 11)).Width(66), p.Box(b.text(item.ModTime.Format("02/01/06 15:04"), 11)).Width(100)).PaddingXY(10, 5).Gap(8)
+
 		if ctx.Index%2 == 1 {
 			row.Background(cs.SurfaceSecondary)
 		}
@@ -134,6 +141,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	}))
 	query := textfield.New(textfield.Placeholder("Filtrar archivos…"), textfield.InitialValue(m.Query), textfield.A11yLabel("Buscar en "+title), textfield.PainterOpt(fluent.TextFieldPainter{Theme: b.theme}), textfield.OnChange(func(q string) {
 		m.Filter(q)
+		list.clicks = clickTracker{}
 		count.Set(len(m.Visible))
 		summary.Set(fmt.Sprintf("%d de %d elementos", len(m.Visible), len(m.Items)))
 		list.InvalidateData()
@@ -173,7 +181,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		}
 	}
 	searchbar := p.HBox(p.Expanded(p.HBox(shortcuts...).Gap(2)), p.Box(query).Width(180).Height(32)).PaddingXY(6, 3).Gap(6).CrossAlign(p.CrossAxisCenter)
-	columns := p.HBox(p.Box().Width(12), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
+	columns := p.HBox(p.Box().Width(16), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
 	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
 	return p.VBox(heading, b.rule(), pathbar, searchbar, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
 }
