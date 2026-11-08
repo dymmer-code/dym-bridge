@@ -21,7 +21,9 @@ saved by the original client. Encrypted credentials prompt for the master
 password and are unlocked only in memory. The preview does not provision new
 resources or save modified credentials. Connect is always explicit.
 
-The top bar restores **Encrypt…, Upload, Download, Web Admin**. Checked items
+The top bar provides **Upload, Download, Web Admin**.
+Credential encryption is under **Connection → Advanced → Encrypt configuration value…**;
+Back returns to Connection and preserves the configuration path draft. Checked items
 control the transfer counts and enabled states. Transfers support files and
 recursive directories through the existing SFTP client, including its overwrite
 behavior. A compact bottom strip displays real per-file byte progress and total

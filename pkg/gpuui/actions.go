@@ -234,10 +234,13 @@ func (b *browser) field(label string, password bool) *textfield.Widget {
 // Forms use the regular focus-aware widget tree: the library's current dialog
 // surface only dispatches events to its action buttons, not to editable content.
 func (b *browser) showForm(title string, children ...widget.Widget) {
+	b.showFormWithBack(title, b.rebuild, children...)
+}
+func (b *browser) showFormWithBack(title string, back func(), children ...widget.Widget) {
 	if b.busy {
 		return
 	}
-	content := []widget.Widget{p.HBox(b.text(title, 18).Bold(), p.Expanded(p.Box()), b.action("Back", false, b.rebuild)).CrossAlign(p.CrossAxisCenter), b.rule()}
+	content := []widget.Widget{p.HBox(b.text(title, 18).Bold(), p.Expanded(p.Box()), b.action("Back", false, back)).CrossAlign(p.CrossAxisCenter), b.rule()}
 	content = append(content, children...)
 	form := p.VBox(content...).Gap(12).Padding(24)
 	b.ui.SetRoot(p.VBox(p.HBox(p.Expanded(p.Box()), p.Box(form).Width(600), p.Expanded(p.Box())), p.Expanded(p.Box())).Background(b.theme.Colors.Surface))
@@ -274,6 +277,11 @@ func (b *browser) showConnection() {
 			}
 		}
 	}
+	children = append(children, b.rule(), b.text("Advanced", 13),
+		b.action("Encrypt configuration value…", false, func() {
+			b.configPath = file.Text()
+			b.showEncrypt()
+		}))
 	b.showForm("Connection", children...)
 }
 func (b *browser) showUnlock(cfg *config.Config) {
@@ -294,8 +302,8 @@ func (b *browser) showEncrypt() {
 	password := b.field("Master password", true)
 	confirm := b.field("Confirm password", true)
 	result := b.field("ENC(…)", false)
-	message := state.NewSignal("AES-256-GCM · Compatible with the original app and INI files")
-	b.showForm("Encrypt a secret", b.text("Value", 12), value, b.text("Master password", 12), password, b.text("Confirm master password", 12), confirm,
+	message := state.NewSignal("Create an ENC(…) value for credentials in your INI configuration.")
+	b.showFormWithBack("Encrypt configuration value", b.showConnection, b.text("Value", 12), value, b.text("Master password", 12), password, b.text("Confirm master password", 12), confirm,
 		p.TextFn(func() string { return message.Get() }).FontSize(12).MaxLines(2),
 		b.action("Encrypt", true, func() {
 			enc, err := encryptValue(value.Text(), password.Text(), confirm.Text())

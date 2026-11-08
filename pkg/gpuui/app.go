@@ -107,7 +107,7 @@ func (b *browser) rebuild() {
 	cs := b.theme.Colors
 	b.updateActions()
 	header := p.HBox(
-		b.action("Encrypt…", false, b.showEncrypt, button.Disabled(b.busy)), p.Expanded(p.Box()),
+		p.Expanded(p.Box()),
 		b.action("Upload", true, func() { b.transfer(true) }, button.TextSignal(b.uploadLabel), button.DisabledSignal(b.uploadDisabled)),
 		b.action("Download", false, func() { b.transfer(false) }, button.TextSignal(b.downloadLabel), button.DisabledSignal(b.downloadDisabled)),
 		p.Box().Width(1).Height(20).Background(cs.StrokeDefault),
