@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -152,8 +153,15 @@ func (a *App) signIn() {
 		forgot.Importance = widget.LowImportance
 		buttons = container.NewHBox(forgot, layout.NewSpacer(), buttons)
 	}
-	d = dialog.NewCustomWithoutButtons(title, container.NewVBox(widget.NewForm(items...), buttons), a.window)
-	d.Resize(fyne.NewSize(440, 200))
+	body := container.NewVBox(widget.NewForm(items...), buttons)
+	if first {
+		warning := widget.NewLabelWithStyle("DO NOT LOSE this password. You will need it every time you connect.",
+			fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		warning.Wrapping = fyne.TextWrapWord
+		body = container.NewVBox(warning, widget.NewForm(items...), buttons)
+	}
+	d = dialog.NewCustomWithoutButtons(title, body, a.window)
+	d.Resize(fyne.NewSize(460, 240))
 	d.Show()
 	a.window.Canvas().Focus(master)
 }
@@ -185,21 +193,61 @@ func (a *App) runSignIn(server, masterPassword string) {
 		return
 	}
 
-	waiting := dialog.NewCustomWithoutButtons("Waiting for the browser",
-		widget.NewLabel("Approve this computer in your browser, then come back."), a.window)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+
+	// The address the browser was sent to is kept so it can be opened again, or copied to the browser (or the
+	// profile of the browser) the user really wants. It holds no secret: only the public part of the request.
+	var (
+		mu      sync.Mutex
+		authURL string
+	)
+	open := func(u string) error {
+		mu.Lock()
+		authURL = u
+		mu.Unlock()
+		return provision.OpenBrowser(u)
+	}
+	current := func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return authURL
+	}
+
+	var waiting dialog.Dialog
+	openAgain := widget.NewButtonWithIcon("Open again", theme.ViewRefreshIcon(), func() {
+		if u := current(); u != "" {
+			_ = provision.OpenBrowser(u)
+		}
+	})
+	copyLink := widget.NewButtonWithIcon("Copy link", theme.ContentCopyIcon(), func() {
+		if u := current(); u != "" {
+			a.fyneApp.Clipboard().SetContent(u)
+		}
+	})
+	stop := widget.NewButtonWithIcon("Cancel", theme.CancelIcon(), func() {
+		cancel()
+		waiting.Hide()
+	})
+	waiting = dialog.NewCustomWithoutButtons("Waiting for the browser",
+		container.NewVBox(
+			widget.NewLabel("Approve this computer in your browser, then come back."),
+			container.NewHBox(openAgain, copyLink, layout.NewSpacer(), stop),
+		), a.window)
 	waiting.Show()
 
 	go func() {
 		defer func() { _ = rcv.Close() }()
-		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
 		defer cancel()
 		profiles, err := provision.Login(ctx, provision.LoginOptions{
 			Server:         server,
 			ProfilesPath:   path,
 			MasterPassword: masterPassword,
-			Open:           provision.OpenBrowser,
+			Open:           open,
 			Receiver:       rcv,
 		})
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return // the user pressed Cancel: nothing to report
+		}
 		fyne.Do(func() {
 			waiting.Hide()
 			if err != nil {
