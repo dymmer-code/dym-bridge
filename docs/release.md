@@ -11,10 +11,10 @@ published unsigned and the job prints a warning.
 
 | Secret | Content |
 |---|---|
-| `APPLE_CERT_P12` | the *Developer ID Application* certificate with its private key, exported as `.p12`, in base64 |
-| `APPLE_CERT_PASSWORD` | the password chosen when exporting the `.p12` |
-| `APPLE_API_KEY` | the App Store Connect API key (`AuthKey_XXXX.p8`) in base64 |
-| `APPLE_API_KEY_ID` | the key id of that API key |
-| `APPLE_API_ISSUER` | the issuer id shown in App Store Connect, Users and Access, Integrations |
+| `MACOS_CERTIFICATE_P12` | the *Developer ID Application* certificate with its private key, exported as `.p12`, in base64 |
+| `MACOS_CERTIFICATE_PASSWORD` | the password chosen when exporting the `.p12` |
+| `MACOS_NOTARY_KEY` | the App Store Connect API key (`AuthKey_XXXX.p8`) in base64 |
+| `MACOS_NOTARY_KEY_ID` | the key id of that API key |
+| `MACOS_NOTARY_ISSUER_ID` | the issuer id shown in App Store Connect, Users and Access, Integrations |
 
 The `.p12` and the key are never printed and are deleted at the end of the job.
