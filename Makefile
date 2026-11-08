@@ -125,8 +125,8 @@ preview: preview-build
 	./bin/dym-bridge-gpu
 
 preview-test:
-	CGO_ENABLED=0 go test ./pkg/gpuui
-	CGO_ENABLED=0 go vet ./pkg/gpuui ./cmd/dym-bridge-gpu
+	CGO_ENABLED=0 go test ./pkg/gpuui ./pkg/sites
+	CGO_ENABLED=0 go vet ./pkg/gpuui ./pkg/sites ./cmd/dym-bridge-gpu
 
 preview-bundle: preview-build
 	sh packaging/macos/preview.sh

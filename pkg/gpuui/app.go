@@ -3,6 +3,7 @@ package gpuui
 import (
 	"fmt"
 	"github.com/dymmer-code/dym-bridge/pkg/config"
+	"github.com/dymmer-code/dym-bridge/pkg/sites"
 	"path"
 	"path/filepath"
 	"sync"
@@ -24,24 +25,24 @@ import (
 )
 
 type browser struct {
-	ui                               *app.App
-	gpu                              *gogpu.App
-	theme                            *fluent.Theme
-	local, remote                    *Model
-	dark                             bool
-	transfersOpen                    bool
-	status                           state.Signal[string]
-	selection                        state.Signal[string]
-	session                          session
-	cfg                              *config.Config
-	configPath                       string
-	connected, busy                  bool
-	updates                          chan func()
-	progress                         chan transferProgress
-	workers                          sync.WaitGroup
-	uploadLabel, downloadLabel       state.Signal[string]
-	uploadDisabled, downloadDisabled state.Signal[bool]
-	transferText                     state.Signal[string]
+	ui              *app.App
+	gpu             *gogpu.App
+	theme           *fluent.Theme
+	local, remote   *Model
+	dark            bool
+	transfersOpen   bool
+	status          state.Signal[string]
+	selection       state.Signal[string]
+	session         session
+	cfg             *config.Config
+	configPath      string
+	siteLinks       []sites.Link
+	siteLoadError   error
+	connected, busy bool
+	updates         chan func()
+	progress        chan transferProgress
+	workers         sync.WaitGroup
+	transferText    state.Signal[string]
 }
 
 // Run starts the native GoGPU explorer. Connections are initiated explicitly.
@@ -49,7 +50,7 @@ func Run(dir string) error { return RunWithConfig(dir, "") }
 func RunWithConfig(dir, configPath string) error {
 	b := &browser{local: NewModel(dir), remote: NewModel("/"), status: state.NewSignal("Disconnected"), selection: state.NewSignal(""), configPath: configPath,
 		updates: make(chan func(), 16), progress: make(chan transferProgress, 1),
-		uploadLabel: state.NewSignal("Upload"), downloadLabel: state.NewSignal("Download"), uploadDisabled: state.NewSignal(true), downloadDisabled: state.NewSignal(true), transferText: state.NewSignal("No transfers")}
+		transferText: state.NewSignal("No transfers")}
 	if err := b.local.Navigate(dir); err != nil {
 		return err
 	}
@@ -105,13 +106,8 @@ func (b *browser) rule() widget.Widget {
 }
 func (b *browser) rebuild() {
 	cs := b.theme.Colors
-	b.updateActions()
 	header := p.HBox(
-		p.Expanded(p.Box()),
-		b.action("Upload", true, func() { b.transfer(true) }, button.TextSignal(b.uploadLabel), button.DisabledSignal(b.uploadDisabled)),
-		b.action("Download", false, func() { b.transfer(false) }, button.TextSignal(b.downloadLabel), button.DisabledSignal(b.downloadDisabled)),
-		p.Box().Width(1).Height(20).Background(cs.StrokeDefault),
-		b.action("Web Admin", false, b.openAdmin, button.Disabled(b.busy || !b.connected || b.cfg == nil || b.cfg.WordPress.HostHeader == "")),
+		p.Box(b.sitesMenu()).Width(90), p.Expanded(p.Box()),
 		b.action("Theme", false, func() { b.dark = !b.dark; b.setTheme(); b.ui.SetTheme(b.theme.AsTheme()); b.rebuild() }),
 	).PaddingXY(8, 4).Gap(8).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
 	remoteTitle, remoteStatus := "Remote server", "Disconnected"
@@ -152,7 +148,6 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	refreshToolbar := func() {}
 	updateSummary := func() {
 		summary.Set(fmt.Sprintf("%d items · %d selected", len(m.Visible), m.SelectionCount()))
-		b.updateActions()
 		refreshToolbar()
 	}
 	list.changed = updateSummary

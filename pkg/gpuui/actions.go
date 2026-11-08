@@ -17,22 +17,6 @@ import (
 	"github.com/gogpu/ui/widget"
 )
 
-func (b *browser) updateActions() {
-	if b.uploadLabel == nil {
-		return
-	}
-	label := func(base string, n int) string {
-		if n > 0 {
-			return fmt.Sprintf("%s (%d)", base, n)
-		}
-		return base
-	}
-	b.uploadLabel.Set(label("Upload", b.local.SelectionCount()))
-	b.downloadLabel.Set(label("Download", b.remote.SelectionCount()))
-	b.uploadDisabled.Set(!b.connected || b.busy || b.local.SelectionCount() == 0)
-	b.downloadDisabled.Set(!b.connected || b.busy || b.remote.SelectionCount() == 0)
-}
-
 // All widget mutations run on the UI thread. Progress is bounded to one latest
 // value, so fast SFTP callbacks cannot flood the event queue or retain files.
 func (b *browser) drainUpdates() {
@@ -119,6 +103,7 @@ func (b *browser) connect(cfg *config.Config) {
 		return err
 	}, func(err error) {
 		b.cfg = &copyCfg
+		b.loadSites()
 		if err != nil {
 			b.status.Set("Connection failed: " + err.Error())
 			return
@@ -214,14 +199,6 @@ func (b *browser) transfer(upload bool) {
 			b.status.Set(message + " · Refresh failed: " + refreshErr.Error())
 		}
 	})
-}
-func (b *browser) openAdmin() {
-	if !b.connected || b.cfg == nil || b.cfg.WordPress.HostHeader == "" {
-		return
-	}
-	if err := provision.OpenBrowser(b.cfg.LocalAdminURL()); err != nil {
-		b.status.Set("Could not open Web Admin: " + err.Error())
-	}
 }
 func (b *browser) field(label string, password bool) *textfield.Widget {
 	opts := []textfield.Option{textfield.Placeholder(label), textfield.A11yLabel(label), textfield.PainterOpt(fluent.TextFieldPainter{Theme: b.theme})}

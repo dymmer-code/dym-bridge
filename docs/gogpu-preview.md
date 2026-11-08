@@ -21,14 +21,25 @@ saved by the original client. Encrypted credentials prompt for the master
 password and are unlocked only in memory. The preview does not provision new
 resources or save modified credentials. Connect is always explicit.
 
-The top bar provides **Upload, Download, Web Admin**.
+The top bar provides a **Sites** dropdown. Upload/Download remain in the pane toolbars.
 Credential encryption is under **Connection → Advanced → Encrypt configuration value…**;
 Back returns to Connection and preserves the configuration path draft. Checked items
-control the transfer counts and enabled states. Transfers support files and
+control the transfer actions and enabled states. Transfers support files and
 recursive directories through the existing SFTP client, including its overwrite
 behavior. A compact bottom strip displays real per-file byte progress and total
 selected-item completion, with completion/error feedback and refreshed listings.
-Web Admin is enabled only for a connected configuration with a web tunnel.
+**Sites → Configure sites…** edits name/URL pairs, stored per SSH user/host/port
+in `sites.json` under the platform's user configuration directory (`dym-bridge`).
+Add, edit or remove rows and Save; Back discards the draft. HTTP(S) URLs are
+resolved from the SSH server, including its loopback and internal hosts. Clicking
+a site opens a local loopback proxy that uses SSH forwarding exclusively; it
+works with SFTP-only profiles too, when the SSH server permits TCP forwarding.
+Relays are reused per origin and closed on disconnect or connection change.
+HTTPS upstream certificates are verified normally. Same-origin redirects are
+rewritten locally; cross-origin redirects fail rather than bypassing SSH.
+Absolute URLs embedded in page HTML/JavaScript are not rewritten, and applications
+requiring a canonical origin or cross-origin authentication may need proxy-aware
+configuration. This is a reverse proxy for configured sites, not a browser-wide VPN.
 
 Pane footers show item/selection counts; the status footer shows connection,
 operation errors, Connect/Reconnect, Disconnect and Connection settings. Theme

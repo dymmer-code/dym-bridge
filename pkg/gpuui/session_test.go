@@ -4,13 +4,16 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"github.com/dymmer-code/dym-bridge/pkg/config"
 	"github.com/dymmer-code/dym-bridge/pkg/secret"
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
-	"github.com/gogpu/ui/state"
 	pkgsftp "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -165,6 +168,37 @@ func testSFTPServer(t *testing.T) *config.Config {
 				defer c.Close()
 				go ssh.DiscardRequests(reqs)
 				for incoming := range chans {
+					if incoming.ChannelType() == "direct-tcpip" {
+						var target struct {
+							Host       string
+							Port       uint32
+							Origin     string
+							OriginPort uint32
+						}
+						if err := ssh.Unmarshal(incoming.ExtraData(), &target); err != nil {
+							_ = incoming.Reject(ssh.ConnectionFailed, "invalid target")
+							continue
+						}
+						remote, err := net.Dial("tcp", net.JoinHostPort(target.Host, fmt.Sprint(target.Port)))
+						if err != nil {
+							_ = incoming.Reject(ssh.ConnectionFailed, "unavailable")
+							continue
+						}
+						channel, requests, err := incoming.Accept()
+						if err != nil {
+							remote.Close()
+							continue
+						}
+						go ssh.DiscardRequests(requests)
+						go func() {
+							defer remote.Close()
+							defer channel.Close()
+							go func() { _, _ = io.Copy(channel, remote); channel.CloseWrite() }()
+							_, _ = io.Copy(remote, channel)
+						}()
+						continue
+					}
+
 					channel, requests, err := incoming.Accept()
 					if err != nil {
 						return
@@ -191,31 +225,6 @@ func testSFTPServer(t *testing.T) *config.Config {
 	return &config.Config{Provisioned: true, SSH: config.SSHConfig{Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port, User: "test", Password: "test", HostKeys: []string{ssh.FingerprintSHA256(signer.PublicKey())}}}
 }
 
-func TestTransferActionsFollowCheckboxesAndConnection(t *testing.T) {
-	b := &browser{local: NewDemoModel(), remote: NewDemoModel(), uploadLabel: state.NewSignal(""), downloadLabel: state.NewSignal(""), uploadDisabled: state.NewSignal(false), downloadDisabled: state.NewSignal(false)}
-	b.local.Toggle(0)
-	b.remote.Toggle(1)
-	b.updateActions()
-	if !b.uploadDisabled.Get() || !b.downloadDisabled.Get() {
-		t.Fatal("disconnected transfers enabled")
-	}
-	b.connected = true
-	b.updateActions()
-	if b.uploadDisabled.Get() || b.downloadDisabled.Get() || b.uploadLabel.Get() != "Upload (1)" || b.downloadLabel.Get() != "Download (1)" {
-		t.Fatal("checked items not reflected")
-	}
-	b.busy = true
-	b.updateActions()
-	if !b.uploadDisabled.Get() || !b.downloadDisabled.Get() {
-		t.Fatal("concurrent transfer enabled")
-	}
-	b.busy = false
-	b.local.Toggle(0)
-	b.updateActions()
-	if !b.uploadDisabled.Get() || b.downloadDisabled.Get() {
-		t.Fatal("selection removal not reflected")
-	}
-}
 func TestFailedConnectionClearsSession(t *testing.T) {
 	cfg := testSFTPServer(t)
 	cfg.SSH.HostKeys = []string{"SHA256:wrong-key"}
@@ -225,5 +234,39 @@ func TestFailedConnectionClearsSession(t *testing.T) {
 	}
 	if s.manager != nil || s.files != nil {
 		t.Fatal("failed session retained")
+	}
+}
+
+func TestSiteRelayOverSSHAndDisconnect(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "via SSH "+r.URL.RequestURI()) }))
+	defer upstream.Close()
+	var s session
+	if err := s.connect(testSFTPServer(t)); err != nil {
+		t.Fatal(err)
+	}
+	defer s.close()
+	localURL, err := s.siteURL(upstream.URL + "/admin?q=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.Get(localURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if string(data) != "via SSH /admin?q=1" {
+		t.Fatal(string(data))
+	}
+	again, err := s.siteURL(upstream.URL + "/admin?q=1")
+	if err != nil || again != localURL || len(s.relays) != 1 {
+		t.Fatal(again, err)
+	}
+	s.close()
+	if _, err := http.Get(localURL); err == nil {
+		t.Fatal("relay survived disconnect")
+	}
+	if _, err := s.siteURL(upstream.URL); err == nil {
+		t.Fatal("opened while disconnected")
 	}
 }

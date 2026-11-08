@@ -2,6 +2,8 @@ package gpuui
 
 import (
 	"fmt"
+	"github.com/dymmer-code/dym-bridge/pkg/sites"
+	"net/url"
 	"path"
 	"path/filepath"
 
@@ -16,9 +18,14 @@ import (
 type session struct {
 	manager *tunnel.Manager
 	files   *sftp.Client
+	relays  map[string]*sites.Relay
 }
 
 func (s *session) close() {
+	for _, relay := range s.relays {
+		relay.Close()
+	}
+	s.relays = nil
 	if s.files != nil {
 		_ = s.files.Close()
 		s.files = nil
@@ -110,4 +117,28 @@ func (m *Model) CheckedItems() []sftp.Item {
 		}
 	}
 	return items
+}
+
+func (s *session) siteURL(raw string) (string, error) {
+	if s.manager == nil || s.manager.SSHClient() == nil {
+		return "", fmt.Errorf("Connect before opening a site")
+	}
+	if _, err := sites.Validate(sites.Link{Name: "site", URL: raw}); err != nil {
+		return "", err
+	}
+	u, _ := url.Parse(raw)
+	key := u.Scheme + "://" + u.Host
+	if s.relays == nil {
+		s.relays = map[string]*sites.Relay{}
+	}
+	relay := s.relays[key]
+	if relay == nil {
+		var err error
+		relay, err = sites.NewRelay(raw, s.manager.SSHClient().DialContext)
+		if err != nil {
+			return "", err
+		}
+		s.relays[key] = relay
+	}
+	return relay.URL(raw), nil
 }
