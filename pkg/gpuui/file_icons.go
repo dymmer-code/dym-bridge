@@ -71,6 +71,25 @@ func documentGlyph(name string, mark ...icon.PathOp) icon.IconData {
 }
 
 var documentIcon = documentGlyph("file")
+
+// Simplified Go gopher: rounded body, ears, large eyes and paired front teeth.
+// Keep the same 3..21 optical bounds and 24-unit viewbox as document icons.
+var goFileIcon = icon.IconData{Name: "file-go-gopher", ViewBox: 24, StrokeWidth: 1.3, Ops: []icon.PathOp{
+	// Ears and body.
+	icon.Move(6, 6), icon.Cubic(2, 6, 3, 2, 6, 3), icon.Line(8, 5),
+	icon.Move(16, 5), icon.Line(18, 3), icon.Cubic(21, 2, 22, 6, 18, 6),
+	icon.Move(5, 9), icon.Cubic(5, 3, 19, 3, 19, 9), icon.Line(19, 16),
+	icon.Cubic(19, 22, 5, 22, 5, 16), icon.ClosePath(),
+	// Large eyes.
+	icon.Move(11, 9), icon.Cubic(11, 13, 5, 13, 5, 9), icon.Cubic(5, 5, 11, 5, 11, 9), icon.ClosePath(),
+	icon.Move(19, 9), icon.Cubic(19, 13, 13, 13, 13, 9), icon.Cubic(13, 5, 19, 5, 19, 9), icon.ClosePath(),
+	// Pupils, nose and teeth.
+	icon.Move(8, 9), icon.Line(8, 10), icon.Move(16, 9), icon.Line(16, 10),
+	icon.Move(11, 12), icon.Line(13, 12),
+	icon.Move(10, 14), icon.Line(14, 14), icon.Line(14, 17), icon.Line(10, 17), icon.ClosePath(),
+	icon.Move(12, 14), icon.Line(12, 17),
+}}
+
 var codeFileIcon = documentGlyph("file-code",
 	icon.Move(8, 11), icon.Line(5, 14), icon.Line(8, 17),
 	icon.Move(16, 11), icon.Line(19, 14), icon.Line(16, 17),
@@ -109,7 +128,7 @@ type fileIconStyle struct {
 var fileStyles = map[string]fileIconStyle{
 	"php": {"PHP source", codeFileIcon, 0x7965B2}, "html": {"HTML document", codeFileIcon, 0xC45A32},
 	"css": {"Stylesheet", styleFileIcon, 0x3278BC}, "js": {"JavaScript source", scriptFileIcon, 0x987511},
-	"ts": {"TypeScript source", scriptFileIcon, 0x3178C6}, "go": {"Go source", codeFileIcon, 0x16849B},
+	"ts": {"TypeScript source", scriptFileIcon, 0x3178C6}, "go": {"Go source", goFileIcon, 0x168BC0},
 	"json": {"JSON data", dataFileIcon, 0x91701F}, "config": {"Configuration file", configFileIcon, 0x687684},
 	"markdown": {"Markdown document", markdownFileIcon, 0x507CA3}, "xml": {"XML document", codeFileIcon, 0xB06B32},
 	"sql": {"SQL source", databaseFileIcon, 0x567FA1}, "code": {"Source code", codeFileIcon, 0x7C6BAD},
