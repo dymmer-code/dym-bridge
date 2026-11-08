@@ -28,14 +28,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Libraries the window toolkit needs
-        if: matrix.goos == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libxkbcommon-dev libwayland-dev wayland-protocols
+      - name: DMG tools
+        if: matrix.goos == 'darwin'
+        run: make dmg-deps
       - name: Test
         run: go test ./...
+        env:
+          CGO_ENABLED: "0"
       - name: Build and package
         shell: bash
         env:
+          CGO_ENABLED: "0"
           GOOS_NAME: ${{ matrix.goos }}
           GOARCH_NAME: ${{ matrix.goarch }}
         run: |
@@ -49,8 +52,8 @@ jobs:
           case "$GOOS_NAME" in
             darwin)
               make bundle-arch ARCH="$GOARCH_NAME" VERSION="$VERSION"
-              cp -R bin/dym-bridge.app "stage/${NAME}/"
-              tar -C stage -czf "dist/${NAME}.tar.gz" "${NAME}"
+              make dmg-package
+              cp bin/dym-bridge.dmg "dist/${NAME}.dmg"
               ;;
             linux)
               go build -ldflags="$LDFLAGS" -o "stage/${NAME}/dym-bridge" ./cmd/dym-bridge
@@ -77,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${APPLE_CERT_P12:-}" ] || [ -z "${APPLE_API_KEY:-}" ]; then
-            echo "::warning::No Apple signing secrets: the macOS archive is NOT signed or notarized"
+            echo "::warning::No Apple signing secrets: the macOS DMG is NOT signed or notarized"
             exit 0
           fi
           VERSION="${GITHUB_REF_NAME}"
@@ -96,10 +99,8 @@ jobs:
           test -n "$IDENTITY"
           codesign --force --options runtime --timestamp --sign "$IDENTITY" bin/dym-bridge.app
           codesign --verify --strict --verbose=2 bin/dym-bridge.app
-          rm -rf stage-dmg && mkdir stage-dmg
-          cp -R bin/dym-bridge.app stage-dmg/
-          ln -s /Applications stage-dmg/Applications
-          hdiutil create -volname "dym-bridge" -srcfolder stage-dmg -ov -format UDZO "dist/${NAME}.dmg"
+          make dmg-package
+          cp bin/dym-bridge.dmg "dist/${NAME}.dmg"
           codesign --force --timestamp --sign "$IDENTITY" "dist/${NAME}.dmg"
           echo "$APPLE_API_KEY" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
           xcrun notarytool submit "dist/${NAME}.dmg" --key "$RUNNER_TEMP/AuthKey.p8" \

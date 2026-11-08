@@ -56,3 +56,7 @@ var serverIcon = icon.IconData{Name: "server", ViewBox: 24, StrokeWidth: 1.6, Op
 	icon.Move(4, 9), icon.Line(20, 9), icon.Move(4, 15), icon.Line(20, 15),
 	icon.Move(7, 6), icon.Line(9, 6), icon.Move(7, 12), icon.Line(9, 12), icon.Move(7, 18), icon.Line(9, 18),
 }}
+
+var connectIcon = icon.IconData{Name: "connect", ViewBox: 24, StrokeWidth: 1.8, Ops: []icon.PathOp{icon.Move(8, 2), icon.Line(8, 7), icon.Move(16, 2), icon.Line(16, 7), icon.Move(5, 7), icon.Line(19, 7), icon.Line(19, 10), icon.Line(15, 15), icon.Line(9, 15), icon.Line(5, 10), icon.ClosePath(), icon.Move(12, 15), icon.Line(12, 22)}}
+var disconnectIcon = icon.IconData{Name: "disconnect", ViewBox: 24, StrokeWidth: 1.8, Ops: []icon.PathOp{icon.Move(8, 2), icon.Line(8, 7), icon.Move(16, 2), icon.Line(16, 7), icon.Move(5, 7), icon.Line(19, 7), icon.Line(19, 10), icon.Line(15, 15), icon.Line(9, 15), icon.Line(5, 10), icon.ClosePath(), icon.Move(12, 17), icon.Line(12, 22), icon.Move(3, 3), icon.Line(21, 21)}}
+var transferHistoryIcon = icon.IconData{Name: "transfers", ViewBox: 24, StrokeWidth: 1.8, Ops: []icon.PathOp{icon.Move(7, 20), icon.Line(7, 4), icon.Move(3, 8), icon.Line(7, 4), icon.Line(11, 8), icon.Move(17, 4), icon.Line(17, 20), icon.Move(13, 16), icon.Line(17, 20), icon.Line(21, 16)}}

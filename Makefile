@@ -1,9 +1,9 @@
-.PHONY: build test bundle bundle-arch dmg windows clean
+.PHONY: build test bundle bundle-arch bundle-assemble dmg dmg-package dmg-deps windows clean
 
 APP_NAME = dym-bridge
 BUNDLE_DIR = bin/$(APP_NAME).app
 MIN_MACOS_VER = 11.0
-MACOS_ENV = CGO_ENABLED=1 GOOS=darwin MACOSX_DEPLOYMENT_TARGET=$(MIN_MACOS_VER) CGO_CFLAGS="-mmacosx-version-min=$(MIN_MACOS_VER)" CGO_LDFLAGS="-mmacosx-version-min=$(MIN_MACOS_VER)"
+MACOS_ENV = CGO_ENABLED=0 GOOS=darwin
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
@@ -17,10 +17,11 @@ LDFLAGS = -s -w \
 
 build:
 	@mkdir -p bin
-	$(MACOS_ENV) go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/dym-bridge
+	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/dym-bridge
 
 test:
-	go test -v ./...
+	CGO_ENABLED=0 go test ./...
+	CGO_ENABLED=0 go vet ./...
 
 bundle:
 	@echo "Building Universal binary for macOS $(MIN_MACOS_VER)+ (arm64 + amd64) [Version: $(VERSION)]..."
@@ -59,7 +60,7 @@ bundle-assemble:
 		'    <key>CFBundleShortVersionString</key>' \
 		'    <string>$(VERSION_NUM)</string>' \
 		'    <key>CFBundleVersion</key>' \
-		'    <string>$(VERSION)</string>' \
+		'    <string>$(VERSION_NUM)</string>' \
 		'    <key>LSMinimumSystemVersion</key>' \
 		'    <string>$(MIN_MACOS_VER)</string>' \
 		'    <key>NSHighResolutionCapable</key>' \
@@ -77,6 +78,7 @@ bundle-assemble:
 		'    </array>' \
 		'</dict>' \
 		'</plist>' > $(BUNDLE_DIR)/Contents/Info.plist
+	@codesign --force --sign - "$(BUNDLE_DIR)"
 	@echo "✔ Universal $(BUNDLE_DIR) created for macOS $(MIN_MACOS_VER)+!"
 
 # One architecture only (CI builds each on its own runner): the same bundle as `bundle`, without the universal merge.
@@ -86,32 +88,21 @@ bundle-arch:
 	@$(MACOS_ENV) GOARCH=$(ARCH) go build -ldflags="$(LDFLAGS)" -o bin/$(APP_NAME) ./cmd/dym-bridge
 	@$(MAKE) --no-print-directory bundle-assemble
 
+DMG_PYTHON ?= $(CURDIR)/bin/dmg-venv/bin/python
+
+dmg-deps:
+	python3 -m venv bin/dmg-venv
+	bin/dmg-venv/bin/python -m pip install -r packaging/macos/dmg/requirements.txt
+
 dmg: bundle
-	@echo "Creating DMG..."
-	@rm -rf bin/dmg_staging bin/$(APP_NAME).dmg bin/$(APP_NAME)-temp.dmg
-	@mkdir -p bin/dmg_staging
-	@cp -R $(BUNDLE_DIR) bin/dmg_staging/
-	@if [ -f dym-bridge.ini.example ]; then cp dym-bridge.ini.example bin/dmg_staging/; fi
-	@hdiutil create -volname "$(APP_NAME)" -srcfolder bin/dmg_staging -ov -format UDRW bin/$(APP_NAME)-temp.dmg
-	@rm -rf bin/dmg_staging
-	@DEVICE=$$(hdiutil attach -readwrite -noverify -noautoopen bin/$(APP_NAME)-temp.dmg | egrep '^/dev/' | sed 1q | awk '{print $$1}'); \
-	cd /Volumes/$(APP_NAME) && ln -s /Applications && cd -; \
-	hdiutil detach "$$DEVICE"
-	@hdiutil convert bin/$(APP_NAME)-temp.dmg -format UDZO -o bin/$(APP_NAME).dmg
-	@rm -f bin/$(APP_NAME)-temp.dmg
-	@echo "✔ bin/$(APP_NAME).dmg created!"
+	$(MAKE) --no-print-directory dmg-package
+
+dmg-package:
+	DMG_PYTHON="$(DMG_PYTHON)" bash packaging/macos/create-dmg.sh "$(BUNDLE_DIR)" "bin/$(APP_NAME).dmg"
 
 windows:
-	@echo "Building Windows executable bin/$(APP_NAME).exe..."
 	@mkdir -p bin
-	@if command -v zig >/dev/null 2>&1; then \
-		CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC="zig cc -target x86_64-windows-gnu" CXX="zig c++ -target x86_64-windows-gnu" go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge; \
-	elif command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then \
-		CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge; \
-	else \
-		GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge; \
-	fi
-	@echo "✔ bin/$(APP_NAME).exe built!"
+	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS) -H=windowsgui" -o bin/$(APP_NAME).exe ./cmd/dym-bridge
 
 clean:
 	rm -rf bin/ cmd/generate-icons

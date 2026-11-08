@@ -32,7 +32,7 @@ func TestToolbarHelpIncludesDisabledAndCloses(t *testing.T) {
 		w.Event(ctx, event.NewMouseEvent(event.MouseMove, event.ButtonNone, 0, geometry.Pt(x, 60), geometry.Pt(x, 60), 0))
 	}
 	move(110)
-	if stack.current == nil || w.tip.text != "Delete · Not available in this preview" {
+	if stack.current == nil || w.tip.text != "Delete · Unavailable" {
 		t.Fatal("missing disabled tooltip")
 	}
 	first := stack.current
@@ -84,5 +84,23 @@ func TestTooltipDoesNotConsumeToolbarClicks(t *testing.T) {
 		if model.SelectionCount() != want {
 			t.Fatalf("click %d: selected %d, want %d", i+1, model.SelectionCount(), want)
 		}
+	}
+}
+
+func TestFooterTooltipStaysInsideWindow(t *testing.T) {
+	ctx := widget.NewContext()
+	ctx.SetWindowSize(geometry.Sz(800, 600))
+	stack := &tipStack{}
+	ctx.SetOverlayManager(stack)
+	w := newPaneToolbar(fluent.NewTheme(), toolbar.IconButton("Connection settings", upIcon, nil))
+	w.SetBounds(geometry.NewRect(740, 568, 60, 32))
+	w.SetScreenOrigin(geometry.Pt(740, 568))
+	w.targets = []toolbar.PaintButtonState{{Label: "Connection settings", Bounds: geometry.NewRect(0, 0, 28, 28)}}
+	w.showHelp(ctx, geometry.Pt(750, 580))
+	if w.tip == nil || w.tip.text != "Connection settings" {
+		t.Fatal("missing footer tooltip")
+	}
+	if w.tip.Bounds().Max.Y > 600 || w.tip.Bounds().Max.X > 800 {
+		t.Fatalf("tooltip outside window: %v", w.tip.Bounds())
 	}
 }

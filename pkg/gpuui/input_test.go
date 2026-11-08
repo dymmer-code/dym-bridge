@@ -1,6 +1,7 @@
 package gpuui
 
 import (
+	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/ui/core/listview"
 	"github.com/gogpu/ui/event"
@@ -57,7 +58,8 @@ func TestDoubleClick(t *testing.T) {
 func TestFileListActivatesFolderAfterDoubleClick(t *testing.T) {
 	model := NewDemoModel()
 	opened := ""
-	list := &fileList{model: model, activate: func(dir string) { opened = dir }}
+	transferred := ""
+	list := &fileList{model: model, activate: func(dir string) { opened = dir }, fileAction: func(item sftp.Item) { transferred = item.Path }}
 	list.Widget = listview.New(listview.ItemCount(len(model.Visible)), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.OnItemClick(func(i int) { list.clicked = i }))
 	ctx := widget.NewContext()
 	list.Layout(ctx, geometry.Constraints{MinWidth: 400, MaxWidth: 400, MinHeight: 300, MaxHeight: 300})
@@ -79,6 +81,9 @@ func TestFileListActivatesFolderAfterDoubleClick(t *testing.T) {
 	click(now.Add(time.Second+100*time.Millisecond), 94)
 	if opened != "" {
 		t.Fatal("file should not open as a folder")
+	}
+	if transferred != model.Visible[3].Path {
+		t.Fatalf("double click did not transfer file: %q", transferred)
 	}
 }
 

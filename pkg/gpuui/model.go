@@ -1,4 +1,4 @@
-// Package gpuui contains the isolated GoGPU desktop experiment.
+// Package gpuui implements the native GoGPU desktop interface.
 package gpuui
 
 import (
@@ -11,7 +11,7 @@ import (
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 )
 
-// Model is a read-only directory browser. Failed navigation preserves the last view.
+// Model holds the directory listing and selection. Failed navigation preserves the last view.
 type Model struct {
 	Path           string
 	Items, Visible []sftp.Item

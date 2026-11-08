@@ -1,8 +1,10 @@
 package gpuui
 
 import (
+	"context"
 	"fmt"
 	"github.com/dymmer-code/dym-bridge/pkg/config"
+	"github.com/dymmer-code/dym-bridge/pkg/provision"
 	"github.com/dymmer-code/dym-bridge/pkg/sites"
 	"path"
 	"path/filepath"
@@ -25,6 +27,17 @@ import (
 )
 
 type browser struct {
+	profiles        *provision.Profiles
+	profilesFile    string
+	callbackFile    string
+	openURL         func(string) error
+	server          string
+	loginCancel     context.CancelFunc
+	stopping        chan struct{}
+	desktopReady    bool
+	desktopClose    func()
+	connectionEpoch uint64
+
 	ui              *app.App
 	gpu             *gogpu.App
 	theme           *fluent.Theme
@@ -50,7 +63,7 @@ type browser struct {
 func Run(dir string) error { return RunWithConfig(dir, "") }
 func RunWithConfig(dir, configPath string) error {
 	b := &browser{local: NewModel(dir), remote: NewModel("/"), status: state.NewSignal("Disconnected"), selection: state.NewSignal(""), configPath: configPath,
-		updates: make(chan func(), 16), progress: make(chan transferProgress, 1),
+		stopping: make(chan struct{}), updates: make(chan func(), 16), progress: make(chan transferProgress, 1),
 		transferText: state.NewSignal("No transfers")}
 	if err := b.local.Navigate(dir); err != nil {
 		return err
@@ -58,12 +71,19 @@ func RunWithConfig(dir, configPath string) error {
 	if configPath == "" {
 		b.configPath, _ = config.FindConfigFile("")
 	}
-	b.gpu = gogpu.NewApp(gogpu.DefaultConfig().WithTitle("Dym Bridge · GoGPU Preview").WithSize(1180, 760))
+	b.gpu = gogpu.NewApp(gogpu.DefaultConfig().WithTitle("Dym Bridge").WithSize(1180, 760))
 	b.setTheme()
 	b.ui = app.New(app.WithWindowProvider(b.gpu), app.WithPlatformProvider(b.gpu), app.WithEventSource(adaptInput(b.gpu.EventSource())), app.WithTheme(b.theme.AsTheme()))
-	b.gpu.OnUpdate(func(float64) { b.drainUpdates() })
+	b.gpu.OnUpdate(func(float64) { b.initDesktop(); b.drainUpdates() })
+
 	b.rebuild()
+	b.showConnection()
 	err := desktop.Run(b.gpu, b.ui)
+	close(b.stopping)
+	if b.loginCancel != nil {
+		b.loginCancel()
+	}
+	b.session.abort()
 	b.workers.Wait()
 	b.session.close()
 	return err
@@ -122,28 +142,34 @@ func (b *browser) rebuild() {
 		progress := p.TextFn(func() string { return b.transferText.Get() }).FontSize(12).Color(cs.OnSurface).MaxLines(1).Ellipsis()
 		children = append(children, b.rule(), p.HBox(p.Expanded(progress), b.action("Hide", false, func() { b.transfersOpen = false; b.rebuild() })).PaddingXY(12, 4).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary))
 	}
-	footer := p.TextFn(func() string { return b.status.Get() }).FontSize(11).Color(cs.OnSurfaceSecond).MaxLines(1).Ellipsis()
-	footerItems := []widget.Widget{p.Expanded(footer)}
+	footer := &cellText{TextWidget: p.TextFn(func() string { return b.status.Get() }).FontSize(12), size: 12, color: cs.OnSurfaceSecond, center: true}
+	footerItems := []toolbar.Item{}
 	if !b.transfersOpen && b.transferText.Get() != "No transfers" {
-		footerItems = append(footerItems, b.action("Transfers", false, func() { b.transfersOpen = true; b.rebuild() }))
+		footerItems = append(footerItems, toolbar.IconButton("Show transfers", transferHistoryIcon, func() { b.transfersOpen = true; b.rebuild() }))
 	}
-	if !b.connected {
-		label := "Connect…"
+	if b.connected {
+		footerItems = append(footerItems, toolbar.IconButton("Disconnect", disconnectIcon, b.disconnect))
+	} else {
+		label := "Connect"
 		if b.cfg != nil {
 			label = "Reconnect"
 		}
-		footerItems = append(footerItems, b.action(label, false, b.connectAction, button.Disabled(b.busy)))
-	} else {
-		footerItems = append(footerItems, b.action("Disconnect", false, b.disconnect, button.Disabled(b.busy)))
+		footerItems = append(footerItems, toolbar.IconButton(label, connectIcon, b.connectAction))
 	}
-	footerItems = append(footerItems, b.action("Connection…", false, b.showConnection, button.Disabled(b.busy)))
-	children = append(children, b.rule(), p.HBox(footerItems...).PaddingXY(12, 2).Gap(8).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary))
+	footerItems = append(footerItems, toolbar.IconButton("Connection settings", icon.Settings, b.showConnection))
+	for i := range footerItems {
+		footerItems[i].Enabled = !b.busy
+	}
+	footerToolbar := newPaneToolbar(b.theme, footerItems...)
+	footerToolbar.overlays = b.ui.Window().Overlays()
+	children = append(children, b.rule(), p.HBox(p.Expanded(footer), p.Box(footerToolbar).Width(float32(len(footerItems)*31+16))).Height(36).PaddingXY(12, 2).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary))
+
 	b.ui.SetRoot(p.VBox(children...).Background(cs.Surface))
 	b.gpu.RequestRedraw()
 }
 func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	cs := b.theme.Colors
-	list := &fileList{model: m, clicked: -1, activate: func(dir string) { b.navigate(m, dir) }}
+	list := &fileList{model: m, clicked: -1, activate: func(dir string) { b.navigate(m, dir) }, fileAction: func(item sftp.Item) { b.transferSelection(m == b.local, []sftp.Item{item}) }}
 	count := state.NewSignal(len(m.Visible))
 	summary := state.NewSignal(fmt.Sprintf("%d items · %d selected", len(m.Visible), m.SelectionCount()))
 	refreshToolbar := func() {}
@@ -194,17 +220,12 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	if m == b.remote {
 		paneIcon = serverIcon
 	}
-	heading := p.HBox(icon.NewIcon(paneIcon, icon.Size(18), icon.Color(cs.OnSurfaceSecond), icon.Label(title)), p.Expanded(b.text(m.Path, 12).Path())).PaddingXY(10, 5).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
+	heading := p.HBox(icon.NewIcon(paneIcon, icon.Size(18), icon.Color(cs.OnSurfaceSecond), icon.Label(title)), p.Expanded(b.text(m.Path, 12).Path()), b.action("…", false, func() { b.goToFolder(m) })).PaddingXY(10, 5).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
 	transferLabel := "Upload"
 	transferIcon := uploadIcon
 	if m == b.remote {
 		transferLabel = "Download"
 		transferIcon = downloadIcon
-	}
-	disabled := func(label string, image icon.IconData) toolbar.Item {
-		item := toolbar.IconButton(label, image, nil)
-		item.Enabled = false
-		return item
 	}
 	items := []toolbar.Item{
 		toolbar.IconButton("Parent folder", upIcon, parent),
@@ -217,7 +238,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 			updateSummary()
 			b.status.Set(fmt.Sprintf("%d items selected in %s", m.SelectionCount(), title))
 		}),
-		disabled("New folder", newFolderIcon), disabled("Delete", icon.Delete),
+		toolbar.IconButton("New folder", newFolderIcon, func() { b.newFolder(m) }), toolbar.IconButton("Delete", icon.Delete, func() { b.deleteSelected(m) }),
 		toolbar.Separator(), toolbar.IconButton(transferLabel, transferIcon, func() { b.transfer(m == b.local) }),
 		toolbar.Spacer(), toolbar.Custom(b.text(subtitle, 11)),
 	}
@@ -227,6 +248,8 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		items[0].Enabled = available
 		items[1].Enabled = available
 		items[3].Enabled = available && len(m.Visible) > 0
+		items[4].Enabled = available
+		items[5].Enabled = available && m.SelectionCount() > 0
 		items[7].Enabled = !b.busy && b.connected && m.SelectionCount() > 0
 		actions.SetNeedsRedraw(true)
 	}

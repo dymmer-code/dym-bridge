@@ -1,6 +1,7 @@
 package gpuui
 
 import (
+	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 	"github.com/gogpu/gpucontext"
 	"github.com/gogpu/ui/core/listview"
 	"github.com/gogpu/ui/event"
@@ -64,11 +65,12 @@ func (c *clickTracker) click(key string, at time.Time, x, y float32) bool {
 // row, so rebuilding the tree cannot leave focus pointing at an unmounted list.
 type fileList struct {
 	*listview.Widget
-	model    *Model
-	clicks   clickTracker
-	clicked  int
-	activate func(string)
-	changed  func()
+	model      *Model
+	clicks     clickTracker
+	clicked    int
+	activate   func(string)
+	fileAction func(sftp.Item)
+	changed    func()
 }
 
 func (l *fileList) Event(ctx widget.Context, e event.Event) bool {
@@ -102,8 +104,12 @@ func (l *fileList) Event(ctx widget.Context, e event.Event) bool {
 		}
 		activate = ev.KeyType == event.KeyPress && ev.Key == event.KeyEnter
 	}
-	if activate && item.IsDir {
-		l.activate(item.Path)
+	if activate {
+		if item.IsDir {
+			l.activate(item.Path)
+		} else if l.fileAction != nil {
+			l.fileAction(item)
+		}
 	}
 	return consumed
 }

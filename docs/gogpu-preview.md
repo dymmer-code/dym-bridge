@@ -1,3 +1,21 @@
+# GoGPU desktop interface
+
+GoGPU is now the default interface built by `cmd/dym-bridge`, `make build`, `make bundle`, and the release workflow. The historical preview command remains useful for isolated development. The sections below describe the original prototype and its evolution; the current feature parity supersedes its earlier limitations.
+
+## Promotion to main
+
+- Native English UI, no CGo or WebView. Dual panes, checkboxes, double-click folders/files, typed navigation, create/delete with confirmation, recursive transfers, OS file drop, progress and reconnect.
+- Dymmer browser sign-in uses the existing OAuth/PKCE flow and publishes only the public SSH key. The private key remains encrypted locally; tokens are not persisted. Existing profiles/INI files continue to work. Password recovery (Start over) explicitly confirms forgetting the local key; revocation in Dymmer remains separate.
+- macOS receives `dym-bridge://` Apple events through the same goffi runtime used by GoGPU. Windows/Linux keep command-line callback delivery. The main command retains login, encryption, sample-config and version flags.
+- Resident tray integration: Cocoa status item on macOS, Win32 systray on Windows, StatusNotifierItem/DBusMenu on Linux. When Linux has no compatible tray host, closing exits instead of leaving a hidden inaccessible process. Runtime UI checks are on macOS; other targets are cross-compiled.
+- Sites uses named provisioned interfaces; manual links remain Advanced. Legacy WordPress INI configurations retain their admin link and original local proxy.
+- Footer actions use icon buttons with tooltips; status is vertically centered.
+- `make dmg-deps && make dmg` generates a universal DMG with branded 1x/2x artwork and Finder metadata, without Finder automation. CI always generates a DMG; Developer ID signing/notarization is conditional on configured secrets. No release is published without a tag.
+
+The GoGPU library still does not expose individual controls through macOS accessibility. The old Fyne sources remain behind an explicit `fyne` build tag for reference, and are not linked into the default executable. A full production OAuth login is not performed by automated tests: local integration tests exercise key publication, callback state/PKCE, encrypted persistence and SSH/SFTP/tunnel behavior.
+
+---
+
 # GoGPU UI preview
 
 Experimental branch: `codex/gogpu-ui-prototype`. Tracking: Dymmer Backlog #423.

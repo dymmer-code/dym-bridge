@@ -31,6 +31,17 @@ func (b *browser) loadSites() {
 }
 func (b *browser) sitesMenu() widget.Widget {
 	var items []menu.MenuItem
+	if b.cfg != nil && b.cfg.WordPress.HostHeader != "" {
+		if b.connected && !b.busy {
+			items = append(items, menu.Item("WordPress admin", "", func() {
+				if err := provision.OpenBrowser(b.session.manager.AdminURL()); err != nil {
+					b.status.Set(err.Error())
+				}
+			}))
+		} else {
+			items = append(items, menu.ItemDisabled("WordPress admin", ""))
+		}
+	}
 	for _, link := range b.siteLinks {
 		if !b.connected || b.busy {
 			items = append(items, menu.ItemDisabled(link.Name, ""))
@@ -163,4 +174,32 @@ func interfaceLinks(cfg *config.Config) []sites.Link {
 		}
 	}
 	return links
+}
+
+// The tray opens a keyboard-accessible site chooser in the existing window.
+func (b *browser) showSites() {
+	if b.busy {
+		return
+	}
+	var children []widget.Widget
+	if !b.connected {
+		children = append(children, b.text("Connect to open a site.", 13), b.action("Connection…", true, b.showConnection))
+	} else {
+		if b.cfg != nil && b.cfg.WordPress.HostHeader != "" {
+			children = append(children, b.action("WordPress admin", false, func() { _ = provision.OpenBrowser(b.session.manager.AdminURL()) }))
+		}
+		for _, link := range b.siteLinks {
+			children = append(children, b.action(link.Name, false, func() { b.openSite(link) }))
+		}
+		if len(b.siteLinks) == 0 {
+			children = append(children, b.text("No interfaces provided", 12))
+		}
+		if len(b.manualSites) > 0 {
+			children = append(children, b.rule(), b.text("Advanced · Manual links", 12))
+			for _, link := range b.manualSites {
+				children = append(children, b.action(link.Name, false, func() { b.openSite(link) }))
+			}
+		}
+	}
+	b.showForm("Sites", children...)
 }

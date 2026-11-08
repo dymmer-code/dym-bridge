@@ -10,6 +10,7 @@ import (
 	"github.com/dymmer-code/dym-bridge/pkg/provision"
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 	"github.com/gogpu/ui/core/button"
+	"github.com/gogpu/ui/core/scrollview"
 	"github.com/gogpu/ui/core/textfield"
 	p "github.com/gogpu/ui/primitives"
 	"github.com/gogpu/ui/state"
@@ -53,7 +54,7 @@ func (b *browser) runOperation(message string, work func() error, done func(erro
 	go func() {
 		defer b.workers.Done()
 		err := work()
-		b.updates <- func() {
+		b.post(func() {
 			// A final progress callback can race the frame that receives completion.
 			// Discard it before publishing the terminal status.
 			select {
@@ -63,8 +64,7 @@ func (b *browser) runOperation(message string, work func() error, done func(erro
 			b.busy = false
 			done(err)
 			b.rebuild()
-		}
-		b.gpu.RequestRedraw()
+		})
 	}()
 }
 func (b *browser) connectAction() {
@@ -85,6 +85,8 @@ func (b *browser) connect(cfg *config.Config) {
 		b.showUnlock(cfg)
 		return
 	}
+	b.connectionEpoch++
+	epoch := b.connectionEpoch
 	// Keep configuration immutable for the worker and for later reconnects.
 	copyCfg := *cfg
 	var items []sftp.Item
@@ -109,6 +111,24 @@ func (b *browser) connect(cfg *config.Config) {
 			return
 		}
 		b.connected = true
+		client := b.session.manager.SSHClient()
+		go func() {
+			err := client.Wait()
+			b.post(func() {
+				if b.connectionEpoch != epoch || !b.connected {
+					return
+				}
+				b.connected = false
+				b.remote.Items = nil
+				b.remote.Filter("")
+				message := "Connection ended"
+				if err != nil {
+					message += " · " + err.Error()
+				}
+				b.status.Set(message)
+				b.rebuild()
+			})
+		}()
 		b.remote.Path = copyCfg.SFTP.RemotePath
 		b.remote.Items = items
 		b.remote.Filter("")
@@ -122,6 +142,7 @@ func (b *browser) disconnect() {
 	if b.busy {
 		return
 	}
+	b.connectionEpoch++
 	b.runOperation("Disconnecting…", func() error { b.session.close(); return nil }, func(error) {
 		b.connected = false
 		b.remote.Items = nil
@@ -154,15 +175,23 @@ func (b *browser) transfer(upload bool) {
 	if b.busy || !b.connected {
 		return
 	}
-	source, target := b.local, b.remote.Path
-	verb := "Uploading"
+	source := b.local
 	if !upload {
-		source, target = b.remote, b.local.Path
-		verb = "Downloading"
+		source = b.remote
 	}
 	items := source.CheckedItems()
 	if len(items) == 0 {
 		return
+	}
+	b.transferSelection(upload, items)
+}
+func (b *browser) transferSelection(upload bool, items []sftp.Item) {
+	if len(items) == 0 || b.busy || !b.connected {
+		return
+	}
+	source, target, verb := b.local, b.remote.Path, "Uploading"
+	if !upload {
+		source, target, verb = b.remote, b.local.Path, "Downloading"
 	}
 	localPath, remotePath := b.local.Path, b.remote.Path
 	var localItems, remoteItems []sftp.Item
@@ -220,7 +249,7 @@ func (b *browser) showFormWithBack(title string, back func(), children ...widget
 	content := []widget.Widget{p.HBox(b.text(title, 18).Bold(), p.Expanded(p.Box()), b.action("Back", false, back)).CrossAlign(p.CrossAxisCenter), b.rule()}
 	content = append(content, children...)
 	form := p.VBox(content...).Gap(12).Padding(24)
-	b.ui.SetRoot(p.VBox(p.HBox(p.Expanded(p.Box()), p.Box(form).Width(600), p.Expanded(p.Box())), p.Expanded(p.Box())).Background(b.theme.Colors.Surface))
+	b.ui.SetRoot(p.VBox(p.Expanded(scrollview.New(p.HBox(p.Expanded(p.Box()), p.Box(form).Width(600), p.Expanded(p.Box()))))).Background(b.theme.Colors.Surface))
 	b.gpu.RequestRedraw()
 }
 func (b *browser) showConnection() {
@@ -230,7 +259,7 @@ func (b *browser) showConnection() {
 	file := b.field("Configuration file (.ini)", false)
 	file.SetText(b.configPath)
 	message := state.NewSignal("Choose an existing configuration or a saved resource.")
-	children := []widget.Widget{b.text("Configuration file", 12), file, p.TextFn(func() string { return message.Get() }).FontSize(12).MaxLines(2), b.action("Connect", true, func() {
+	children := []widget.Widget{b.action("Sign in with Dymmer…", true, b.signIn), b.text("Configuration file", 12), file, p.TextFn(func() string { return message.Get() }).FontSize(12).MaxLines(2), b.action("Connect", true, func() {
 		cfg, err := config.Load(strings.TrimSpace(file.Text()))
 		if err != nil {
 			message.Set("Could not load configuration. Check the path and INI settings.")
@@ -239,8 +268,12 @@ func (b *browser) showConnection() {
 		b.configPath = strings.TrimSpace(file.Text())
 		b.connect(cfg)
 	})}
-	if filename, err := provision.DefaultPath(); err == nil {
+	if filename, err := b.profilePath(); err == nil {
 		if profiles, err := provision.Load(filename); err == nil {
+			b.profiles = profiles
+			if len(profiles.Resources) == 0 {
+				children = append(children, b.text("No site is shared with you yet. Sign in again after access is granted.", 12))
+			}
 			children = append(children, b.rule(), b.text("Saved resources", 13))
 			for i, r := range profiles.Resources {
 				children = append(children, b.action(r.Label(), false, func() {
@@ -254,7 +287,7 @@ func (b *browser) showConnection() {
 			}
 		}
 	}
-	children = append(children, b.rule(), b.text("Advanced", 13),
+	children = append(children, b.rule(), b.text("Advanced", 13), b.action("Start over…", false, b.startOver), b.action("Browse for INI…", false, b.browseINI), b.action("Create sample INI…", false, b.saveSampleINI),
 		b.action("Encrypt configuration value…", false, func() {
 			b.configPath = file.Text()
 			b.showEncrypt()

@@ -5,6 +5,8 @@ go 1.27.1
 require (
 	fyne.io/fyne/v2 v2.8.1
 	fyne.io/systray v1.12.3-0.20260810170012-af4e8e793ec4
+	github.com/go-webgpu/goffi v0.6.8
+	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gogpu/gg v0.52.6
 	github.com/gogpu/gogpu v0.54.1
 	github.com/gogpu/gpucontext v0.31.3
@@ -31,9 +33,7 @@ require (
 	github.com/go-gl/glfw/v3.4/glfw v0.1.0-pre.1.0.20260707082822-2a407d02d01a // indirect
 	github.com/go-text/render v0.2.1 // indirect
 	github.com/go-text/typesetting v0.3.4 // indirect
-	github.com/go-webgpu/goffi v0.6.8 // indirect
 	github.com/go-webgpu/webgpu v0.5.5 // indirect
-	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/gogpu/gputypes v0.8.2 // indirect
 	github.com/gogpu/naga v0.21.4 // indirect
 	github.com/gogpu/wgpu v0.34.9 // indirect

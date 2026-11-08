@@ -11,10 +11,10 @@ Aplicación de escritorio multiplataforma (Windows, macOS y Linux) en Go diseña
   * Inyecta automáticamente la cabecera `Host: dominio.com` y reescribe las redirecciones canónicas `Location` de WordPress para que no fallen al acceder por `http://127.0.0.1:8080/wp-admin/`.
   * Botón de **un solo clic** para abrir el panel de administración en el navegador predeterminado del sistema (respetando contraseñas guardadas y extensiones).
 * **📁 Explorador de Archivos SFTP (Estilo Windows Explorer)**:
-  * Navegación visual rápida con barra de migas de pan (*breadcrumbs*) clickeable.
-  * Subida de archivos, descarga, creación de nuevas carpetas, renombramiento y eliminación.
+  * Navegación compacta con rutas abreviadas, doble clic en carpetas y acceso directo a rutas mediante el botón de puntos suspensivos.
+  * Subida de archivos, descarga, creación de nuevas carpetas y eliminación con confirmación.
   * **Soporte Drag & Drop**: Arrastre archivos o carpetas desde el explorador del sistema operativo hacia la ventana para iniciar la subida con barra de progreso.
-  * Accesos rápidos a carpetas habituales de WordPress (`wp-content/uploads`, `themes`, `plugins`).
+  * Selección mediante checkboxes y progreso de transferencias.
 * **🟢 Bandeja del Sistema (Systray)**:
   * Al cerrar la ventana principal (`X`), la aplicación continúa ejecutándose en segundo plano manteniendo el túnel activo.
   * Menú en el icono de la bandeja para abrir el explorador, abrir WordPress Admin, reconectar el túnel o salir.
@@ -64,7 +64,7 @@ remote_path = /var/www/html/wp-content
 
 ## Compilación y Empaquetado
 
-Requiere Go 1.22+ y CGO (para Fyne y OpenGL/Cocoa/Win32).
+Requiere la versión de Go indicada en `go.mod`. La aplicación principal usa GoGPU y compila con `CGO_ENABLED=0`, sin WebView. El empaquetado DMG requiere macOS y Python 3.
 
 ```bash
 # Compilar binario nativo para la máquina actual
@@ -76,7 +76,10 @@ make test
 # Generar bundle universal para macOS (.app arm64 + amd64)
 make bundle
 
-# Crear instalador DMG para macOS
+# Preparar las herramientas de empaquetado (una vez)
+make dmg-deps
+
+# Crear instalador DMG universal para macOS
 make dmg
 
 # Compilar ejecutable para Windows (dym-bridge.exe)
@@ -91,12 +94,16 @@ make windows
 * `pkg/config/`: Lectura y validación de `dym-bridge.ini`, resolución de rutas relativas.
 * `pkg/tunnel/`: Cliente SSH con keepalive y proxy HTTP inverso con reescritura de cabeceras.
 * `pkg/sftp/`: Operaciones SFTP y tracking de progreso en transferencias.
-* `pkg/ui/`: Interfaz gráfica con Fyne (explorador, breadcrumb, drag & drop, tabla de archivos, systray y temas).
+* `pkg/gpuui/`: Interfaz nativa GoGPU, login, explorador dual, Sites y transferencias.
+* `pkg/desktop/`: Integración de escritorio y callback macOS sin CGo.
+* `pkg/ui/`: Fuentes históricas Fyne, excluidas de la compilación normal mediante el tag `fyne`.
 * `pkg/lock/`: Mutex/lock para impedir instancias duplicadas concurrentes.
 * `pkg/version/`: Información de versión y build.
 
-## Prototipo GoGPU UI
+## Interfaz principal GoGPU
 
-La rama experimental incluye una interfaz independiente, sin CGo ni WebView:
-`make preview`. Es una prueba de UX de solo lectura con exploración local real
-y servidor de demostración. Ver [alcance y ejecución](docs/gogpu-preview.md).
+`cmd/dym-bridge` usa ahora la interfaz GoGPU. Se conservan el login OAuth/PKCE con Dymmer, publicación de la clave pública SSH, perfiles cifrados, CLI, INI, SFTP y túneles. Sites se rellena con las interfaces aprovisionadas; los enlaces manuales quedan en Advanced. Los INI WordPress conservan su acceso al panel.
+
+El DMG en `bin/dym-bridge.dmg` incluye fondo de marca y disposición Finder para arrastrar la app a Applications. El mismo empaquetado se usa en CI, con firma y notarización cuando están configuradas. Los binarios y el DMG locales no se publican automáticamente.
+
+Detalles y limitaciones comprobadas: [docs/gogpu-preview.md](docs/gogpu-preview.md).

@@ -270,3 +270,18 @@ func TestSiteRelayOverSSHAndDisconnect(t *testing.T) {
 		t.Fatal("opened while disconnected")
 	}
 }
+
+func TestShutdownStopsSessionAndRejectsReconnect(t *testing.T) {
+	cfg := testSFTPServer(t)
+	var s session
+	if err := s.connect(cfg); err != nil {
+		t.Fatal(err)
+	}
+	client := s.manager.SSHClient()
+	s.abort()
+	_ = client.Wait()
+	s.close()
+	if err := s.connect(cfg); err == nil {
+		t.Fatal("reconnected after shutdown")
+	}
+}

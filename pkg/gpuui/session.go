@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"path/filepath"
+	"sync"
 
 	"github.com/dymmer-code/dym-bridge/pkg/config"
 	"github.com/dymmer-code/dym-bridge/pkg/secret"
@@ -16,12 +17,18 @@ import (
 // session is owned by the single background operation. Widgets never access its
 // mutable connection while an operation is running.
 type session struct {
-	manager *tunnel.Manager
-	files   *sftp.Client
-	relays  map[string]*sites.Relay
+	lifecycle sync.Mutex
+	active    *tunnel.Manager
+	stopped   bool
+	manager   *tunnel.Manager
+	files     *sftp.Client
+	relays    map[string]*sites.Relay
 }
 
 func (s *session) close() {
+	s.lifecycle.Lock()
+	s.active = nil
+	s.lifecycle.Unlock()
 	for _, relay := range s.relays {
 		relay.Close()
 	}
@@ -41,9 +48,24 @@ func (s *session) connect(cfg *config.Config) error {
 	}
 	s.close()
 	s.manager = tunnel.NewManager(cfg)
+	s.lifecycle.Lock()
+	if s.stopped {
+		s.lifecycle.Unlock()
+		s.close()
+		return fmt.Errorf("Application is closing")
+	}
+	s.active = s.manager
+	s.lifecycle.Unlock()
 	if err := s.manager.Connect(); err != nil {
 		s.close()
 		return err
+	}
+	s.lifecycle.Lock()
+	stopped := s.stopped
+	s.lifecycle.Unlock()
+	if stopped {
+		s.close()
+		return fmt.Errorf("Application is closing")
 	}
 	files, err := sftp.NewClient(s.manager.SSHClient())
 	if err != nil {
@@ -154,4 +176,16 @@ func (s *session) siteLinkURL(link sites.Link) (string, error) {
 		s.relays[key] = relay
 	}
 	return relay.URL(raw), nil
+}
+
+// abort interrupts network I/O during application shutdown without mutating
+// the worker-owned SFTP/relay fields. A pending dial is rejected when it returns.
+func (s *session) abort() {
+	s.lifecycle.Lock()
+	s.stopped = true
+	manager := s.active
+	s.lifecycle.Unlock()
+	if manager != nil {
+		manager.Disconnect()
+	}
 }

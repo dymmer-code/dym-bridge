@@ -10,10 +10,11 @@ import (
 // exposes Ellipsis but its Draw method does not apply it yet.
 type cellText struct {
 	*p.TextWidget
-	size  float32
-	color widget.Color
-	bold  bool
-	path  bool
+	size   float32
+	color  widget.Color
+	bold   bool
+	path   bool
+	center bool
 }
 
 func (t *cellText) Bold() *cellText { t.bold = true; t.TextWidget.Bold(); return t }
@@ -40,6 +41,10 @@ func (t *cellText) Draw(_ widget.Context, c widget.Canvas) {
 		text = string(runes[:lo]) + "…"
 	}
 	c.PushClip(bounds)
+	if t.center {
+		bounds.Min.Y += (bounds.Height() - t.size*1.4) / 2
+		bounds.Max.Y = bounds.Min.Y + t.size*1.4
+	}
 	c.DrawText(text, bounds, t.size, t.color, t.bold, widget.TextAlignLeft)
 	c.PopClip()
 }
