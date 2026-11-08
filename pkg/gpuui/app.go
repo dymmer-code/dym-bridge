@@ -6,6 +6,7 @@ import (
 	"github.com/dymmer-code/dym-bridge/pkg/config"
 	"github.com/dymmer-code/dym-bridge/pkg/provision"
 	"github.com/dymmer-code/dym-bridge/pkg/sites"
+	"os"
 	"path"
 	"path/filepath"
 	"sync"
@@ -35,6 +36,7 @@ type browser struct {
 	loginCancel     context.CancelFunc
 	stopping        chan struct{}
 	desktopReady    bool
+	hideRequested   bool
 	desktopClose    func()
 	connectionEpoch uint64
 
@@ -62,7 +64,7 @@ type browser struct {
 // Run starts the native GoGPU explorer. Connections are initiated explicitly.
 func Run(dir string) error { return RunWithConfig(dir, "") }
 func RunWithConfig(dir, configPath string) error {
-	b := &browser{local: NewModel(dir), remote: NewModel("/"), status: state.NewSignal("Disconnected"), selection: state.NewSignal(""), configPath: configPath,
+	b := &browser{server: os.Getenv("DYMMER_DEV_SERVER"), local: NewModel(dir), remote: NewModel("/"), status: state.NewSignal("Disconnected"), selection: state.NewSignal(""), configPath: configPath,
 		stopping: make(chan struct{}), updates: make(chan func(), 16), progress: make(chan transferProgress, 1),
 		transferText: state.NewSignal("No transfers")}
 	if err := b.local.Navigate(dir); err != nil {
@@ -74,7 +76,7 @@ func RunWithConfig(dir, configPath string) error {
 	b.gpu = gogpu.NewApp(gogpu.DefaultConfig().WithTitle("Dym Bridge").WithSize(1180, 760))
 	b.setTheme()
 	b.ui = app.New(app.WithWindowProvider(b.gpu), app.WithPlatformProvider(b.gpu), app.WithEventSource(adaptInput(b.gpu.EventSource())), app.WithTheme(b.theme.AsTheme()))
-	b.gpu.OnUpdate(func(float64) { b.initDesktop(); b.drainUpdates() })
+	b.gpu.OnUpdate(func(float64) { b.initDesktop(); b.drainUpdates(); b.flushWindowActions() })
 
 	b.rebuild()
 	b.showConnection()
@@ -129,7 +131,7 @@ func (b *browser) rebuild() {
 	cs := b.theme.Colors
 	header := p.HBox(
 		p.Box(b.sitesMenu()).Width(90), p.Expanded(p.Box()),
-		b.action("Theme", false, func() { b.dark = !b.dark; b.setTheme(); b.ui.SetTheme(b.theme.AsTheme()); b.rebuild() }),
+		b.themeButton(),
 	).PaddingXY(8, 4).Gap(8).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
 	remoteTitle, remoteStatus := "Remote server", "Disconnected"
 	if b.connected {

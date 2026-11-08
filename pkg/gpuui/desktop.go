@@ -5,6 +5,7 @@ import (
 	native "github.com/dymmer-code/dym-bridge/pkg/desktop"
 	"github.com/gogpu/gogpu"
 	"os"
+	"runtime"
 )
 
 func (b *browser) post(fn func()) {
@@ -34,16 +35,26 @@ func (b *browser) initDesktop() {
 		b.desktopClose = cleanup
 	}
 	if tray {
-		b.gpu.PrimaryWindow().SetOnClose(func() bool { b.gpu.PrimaryWindow().Hide(); return false })
+		b.gpu.PrimaryWindow().SetOnClose(b.requestHide)
 	}
-	b.gpu.SetCustomMenu("Connection", &gogpu.Menu{Title: "Connection", Items: []gogpu.MenuItem{
+	items := []gogpu.MenuItem{
 		{Title: "Sign in with Dymmer…", Action: queue(b.signIn)},
 		{Title: "Connection…", Action: queue(b.showConnection)},
 		{Title: "Reconnect", Action: queue(b.connectAction)},
 		{Title: "Open Dym Bridge", Action: queue(open)},
 		{Title: "Start over…", Action: queue(b.startOver)},
 		{Title: "Quit Dym Bridge", Role: gogpu.RoleQuit, Action: queue(b.quit)},
-	}})
+	}
+	if runtime.GOOS != "darwin" {
+		b.gpu.SetCustomMenu("Connection", &gogpu.Menu{Title: "Connection", Items: items})
+		return
+	}
+	b.gpu.SetMenu(gogpu.NewMenu())
+	if appMenu := b.gpu.GetSystemMenu(gogpu.SystemMenuApplication); appMenu != nil {
+		for _, item := range items {
+			appMenu.AddItem(item)
+		}
+	}
 }
 func (b *browser) browseINI() {
 	files, err := b.gpu.ShowOpenFileDialog(gogpu.FileDialogOptions{Title: "Open configuration"})
@@ -79,4 +90,19 @@ func (b *browser) quit() {
 		b.desktopClose = nil
 	}
 	b.gpu.Quit()
+}
+
+// Cocoa invokes onClose while holding its window mutex. Do not call Hide
+// from that callback: it takes the same mutex. Apply it on the next update.
+func (b *browser) requestHide() bool {
+	b.hideRequested = true
+	return false
+}
+func (b *browser) flushWindowActions() {
+	if b.hideRequested {
+		b.hideRequested = false
+		if w := b.gpu.PrimaryWindow(); w != nil {
+			w.Hide()
+		}
+	}
 }

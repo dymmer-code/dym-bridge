@@ -12,18 +12,15 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// DeviceKey is the key pair of this device. The private half never leaves the computer: it is kept encrypted with the
+// DeviceKey is the key pair of this device. The private half never leaves the computer: it is optionally encrypted with a
 // master password, and only the public half is sent to Dymmer.
 type DeviceKey struct {
 	PublicKey string `json:"public_key"` // authorized_keys line
-	Private   string `json:"private"`    // ENC(...), the private key in OpenSSH format
+	Private   string `json:"private"`    // OpenSSH PEM or ENC(...)
 }
 
-// GenerateDeviceKey creates an Ed25519 pair for this device and encrypts the private key with the master password.
+// GenerateDeviceKey creates an Ed25519 pair for this device and optionally encrypts the private key when a master password is provided.
 func GenerateDeviceKey(comment, masterPassword string) (*DeviceKey, error) {
-	if masterPassword == "" {
-		return nil, fmt.Errorf("a master password is needed to protect the private key")
-	}
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		return nil, err
@@ -36,15 +33,21 @@ func GenerateDeviceKey(comment, masterPassword string) (*DeviceKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	enc, err := secret.Encrypt(string(pem.EncodeToMemory(block)), masterPassword)
-	if err != nil {
-		return nil, err
+	enc := string(pem.EncodeToMemory(block))
+	if masterPassword != "" {
+		enc, err = secret.Encrypt(enc, masterPassword)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &DeviceKey{PublicKey: strings.TrimSpace(string(ssh.MarshalAuthorizedKey(sshPub))), Private: enc}, nil
 }
 
 // Signer decrypts the private key in memory and returns the signer for SSH.
 func (k *DeviceKey) Signer(masterPassword string) (ssh.Signer, error) {
+	if !secret.IsEncrypted(k.Private) {
+		return ssh.ParsePrivateKey([]byte(k.Private))
+	}
 	pemText, err := secret.Decrypt(k.Private, masterPassword)
 	if err != nil {
 		return nil, fmt.Errorf("the master password does not open the device key: %w", err)

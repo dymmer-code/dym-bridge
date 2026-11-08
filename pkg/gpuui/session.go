@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/dymmer-code/dym-bridge/pkg/config"
-	"github.com/dymmer-code/dym-bridge/pkg/secret"
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 	"github.com/dymmer-code/dym-bridge/pkg/tunnel"
 )
@@ -123,22 +122,6 @@ func transferItems(client transferClient, upload bool, items []sftp.Item, target
 		notify(progress)
 	}
 	return nil
-}
-func encryptValue(value, password, confirm string) (string, error) {
-	if value == "" {
-		return "", fmt.Errorf("Enter a value to encrypt")
-	}
-	if password == "" {
-		return "", fmt.Errorf("Enter a master password")
-	}
-	if password != confirm {
-		return "", fmt.Errorf("The passwords do not match")
-	}
-	result, err := secret.Encrypt(value, password)
-	if err != nil {
-		return "", fmt.Errorf("Could not encrypt the value")
-	}
-	return result, nil
 }
 func (m *Model) CheckedItems() []sftp.Item {
 	var items []sftp.Item

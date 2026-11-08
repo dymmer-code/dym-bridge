@@ -4,6 +4,7 @@ import (
 	"github.com/gogpu/ui/geometry"
 	p "github.com/gogpu/ui/primitives"
 	"github.com/gogpu/ui/widget"
+	"strings"
 )
 
 // cellText constrains text to its column. The current toolkit's TextWidget
@@ -55,4 +56,70 @@ func (t *cellText) Layout(ctx widget.Context, constraints geometry.Constraints) 
 	size = constraints.Constrain(size)
 	t.SetBounds(geometry.FromPointSize(t.Position(), size))
 	return size
+}
+
+// wrappedText draws actual lines: TextWidget currently measures wrapping but
+// sends the entire paragraph to the single-line Canvas.DrawText method.
+type wrappedText struct {
+	*p.TextWidget
+	size  float32
+	color widget.Color
+}
+
+func (b *browser) helpText(text string) *wrappedText {
+	return &wrappedText{TextWidget: p.Text(text), size: 12, color: b.theme.Colors.OnSurfaceSecond}
+}
+func (t *wrappedText) Layout(_ widget.Context, constraints geometry.Constraints) geometry.Size {
+	width := constraints.MaxWidth
+	lines := wrapWords(t.Content(), width, func(s string) float32 { return float32(len([]rune(s))) * t.size * .75 })
+	size := constraints.Constrain(geometry.Sz(width, float32(len(lines))*t.size*1.5))
+	t.SetBounds(geometry.FromPointSize(t.Position(), size))
+	return size
+}
+func (t *wrappedText) Draw(_ widget.Context, c widget.Canvas) {
+	bounds := t.Bounds()
+	if !t.IsVisible() || bounds.IsEmpty() {
+		return
+	}
+	lines := wrapWords(t.Content(), bounds.Width(), func(s string) float32 { return c.MeasureText(s, t.size, false) })
+	c.PushClip(bounds)
+	defer c.PopClip()
+	for i, line := range lines {
+		r := geometry.NewRect(bounds.Min.X, bounds.Min.Y+float32(i)*t.size*1.5, bounds.Width(), t.size*1.5)
+		c.DrawText(line, r, t.size, t.color, false, widget.TextAlignLeft)
+	}
+}
+func wrapWords(text string, width float32, measure func(string) float32) []string {
+	if text == "" || width <= 0 {
+		return nil
+	}
+	var lines []string
+	line := ""
+	for _, word := range strings.Fields(text) {
+		candidate := word
+		if line != "" {
+			candidate = line + " " + word
+		}
+		if measure(candidate) <= width {
+			line = candidate
+			continue
+		}
+		if line != "" {
+			lines = append(lines, line)
+			line = ""
+		}
+		// Split unusually long words without losing Unicode code points.
+		for _, r := range word {
+			candidate = line + string(r)
+			if line != "" && measure(candidate) > width {
+				lines = append(lines, line)
+				line = ""
+			}
+			line += string(r)
+		}
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }

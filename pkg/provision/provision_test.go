@@ -206,8 +206,15 @@ func TestDeviceKey(t *testing.T) {
 	if _, err := key.Signer("wrong"); err == nil {
 		t.Fatal("a wrong master password must fail")
 	}
-	if _, err := GenerateDeviceKey("x", ""); err == nil {
-		t.Fatal("an empty master password must be refused")
+	plain, err := GenerateDeviceKey("x", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plain.Private, "PRIVATE KEY") {
+		t.Fatal("optional password must allow a plain key")
+	}
+	if _, err := plain.Signer(""); err != nil {
+		t.Fatal(err)
 	}
 	again, _ := GenerateDeviceKey("laptop", "master")
 	if again.PublicKey == key.PublicKey {
@@ -422,4 +429,48 @@ func fakeDymmerCapturingVerifier(t *testing.T, verifier *string) *httptest.Serve
 			w.WriteHeader(404)
 		}
 	}))
+}
+
+func TestOptionalPasswordPersistsKeyAndCanProtectItLater(t *testing.T) {
+	var verifier string
+	srv := fakeDymmerCapturingVerifier(t, &verifier)
+	defer srv.Close()
+	filename := filepath.Join(t.TempDir(), "profiles.json")
+	rcv := fakeReceiver{uri: make(chan string, 1)}
+	opts := LoginOptions{Server: srv.URL, ProfilesPath: filename, DeviceName: "Test", Open: browser(rcv, "good", false), Receiver: rcv}
+	first, err := Login(context.Background(), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := first.Config(0)
+	if err != nil || cfg.HasEncryptedCredentials() {
+		t.Fatalf("plaintext resource should connect without unlock: %v", err)
+	}
+	if _, err := ssh.ParsePrivateKey([]byte(cfg.SSH.KeyData)); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Login(context.Background(), opts)
+	if err != nil || again.Key.PublicKey != first.Key.PublicKey {
+		t.Fatalf("plaintext key not reused: %v", err)
+	}
+	opts.MasterPassword = "protect-now"
+	protected, err := Login(context.Background(), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if protected.Key.PublicKey != first.Key.PublicKey || !strings.HasPrefix(protected.Key.Private, "ENC(") {
+		t.Fatal("protecting key must preserve its identity")
+	}
+	if _, err := protected.Key.Signer(opts.MasterPassword); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(filename)
+	opts.MasterPassword = ""
+	if _, err := Login(context.Background(), opts); err == nil {
+		t.Fatal("blank must not remove existing encryption")
+	}
+	after, _ := os.ReadFile(filename)
+	if string(before) != string(after) {
+		t.Fatal("failed unlock modified the saved key")
+	}
 }

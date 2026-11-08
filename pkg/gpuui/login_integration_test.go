@@ -8,23 +8,20 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/dymmer-code/dym-bridge/pkg/callback"
 	"github.com/dymmer-code/dym-bridge/pkg/provision"
-	"github.com/gogpu/gogpu"
-	"github.com/gogpu/ui/app"
-	"github.com/gogpu/ui/state"
 )
 
 func TestDesktopSignInPublishesPublicKeyAndKeepsEncryptedProfile(t *testing.T) {
-	b := &browser{profilesFile: filepath.Join(t.TempDir(), "profiles.json"), callbackFile: filepath.Join(t.TempDir(), "callback"), updates: make(chan func(), 16), stopping: make(chan struct{}), status: state.NewSignal(""), gpu: gogpu.NewApp(gogpu.DefaultConfig())}
-	b.setTheme()
-	b.ui = app.New(app.WithTheme(b.theme.AsTheme()))
-	defer b.ui.Window().Close()
+	testDesktopSignIn(t, "test-master-password")
+}
+func TestDesktopSignInWithOptionalPassword(t *testing.T) { testDesktopSignIn(t, "") }
+func testDesktopSignIn(t *testing.T, master string) {
+	b := testBrowser(t)
 	var challenge string
 	var published provision.DeviceInfo
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +63,7 @@ func TestDesktopSignInPublishesPublicKeyAndKeepsEncryptedProfile(t *testing.T) {
 		challenge = u.Query().Get("code_challenge")
 		return callback.Send(b.callbackFile, "dym-bridge://callback?code=test-code&state="+url.QueryEscape(u.Query().Get("state")))
 	}
-	b.runSignIn("test-master-password")
+	b.runSignIn(master)
 	if !b.busy {
 		t.Fatal("sign-in was not started")
 	}
@@ -83,17 +80,24 @@ func TestDesktopSignInPublishesPublicKeyAndKeepsEncryptedProfile(t *testing.T) {
 	if b.profiles.Key.PublicKey != published.PublicKey {
 		t.Fatal("different device key published")
 	}
-	if _, err := b.profiles.Key.Signer("test-master-password"); err != nil {
+	if _, err := b.profiles.Key.Signer(master); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(b.profilesFile)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"ephemeral-test-token", "PRIVATE KEY", "test-master-password"} {
+	for _, secret := range []string{"ephemeral-test-token", "test-master-password"} {
 		if strings.Contains(string(data), secret) {
 			t.Fatalf("persisted secret %s", secret)
 		}
+	}
+	if strings.Contains(string(data), "PRIVATE KEY") != (master == "") {
+		t.Fatal("incorrect private key storage")
+	}
+	info, _ := os.Stat(b.profilesFile)
+	if info.Mode().Perm() != 0600 {
+		t.Fatal("profile must be private")
 	}
 	if _, err := os.Stat(b.callbackFile); !os.IsNotExist(err) {
 		t.Fatal("callback listener was not cleaned up")

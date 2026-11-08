@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 	"github.com/dymmer-code/dym-bridge/pkg/local"
 	"github.com/dymmer-code/dym-bridge/pkg/lock"
 	"github.com/dymmer-code/dym-bridge/pkg/provision"
-	"github.com/dymmer-code/dym-bridge/pkg/secret"
 	"github.com/dymmer-code/dym-bridge/pkg/version"
 	"golang.org/x/term"
 )
@@ -23,8 +21,6 @@ func main() {
 	configFlag := flag.String("config", "", "Path to a dym-bridge INI configuration")
 	versionFlag := flag.Bool("version", false, "Show the dym-bridge version")
 	sampleFlag := flag.Bool("sample-config", false, "Print a sample dym-bridge.ini")
-
-	encryptFlag := flag.Bool("encrypt", false, "Encrypt a password or SSH key for dym-bridge.ini")
 
 	serverFlag := flag.String("server", gpuui.DefaultServer, "Dymmer server to sign in with (command: login)")
 
@@ -49,11 +45,6 @@ func main() {
 
 	if *sampleFlag {
 		fmt.Print(config.SampleConfigTemplate())
-		os.Exit(0)
-	}
-
-	if *encryptFlag {
-		runCLIEncrypt()
 		os.Exit(0)
 	}
 
@@ -86,11 +77,11 @@ func deliverCallback(uri string) int {
 
 // runCLILogin signs in from the terminal: the same flow as the button of the window.
 func runCLILogin(server string) int {
-	fmt.Print("Master password (protects the key of this computer): ")
+	fmt.Print("Master password (optional; blank stores the key unencrypted): ")
 	pwd, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()
-	if err != nil || len(pwd) == 0 {
-		fmt.Fprintln(os.Stderr, "The master password cannot be empty.")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
 	path, err := provision.DefaultPath()
@@ -127,52 +118,4 @@ func runCLILogin(server string) int {
 		fmt.Printf("  - %s (%s:%d)\n", r.Label(), r.Address, r.Port)
 	}
 	return 0
-}
-
-func runCLIEncrypt() {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Println("=== Dym Bridge credential encryption (AES-256-GCM) ===")
-	fmt.Print("Enter a value or file path to encrypt (password or SSH key): ")
-	secretText, _ := reader.ReadString('\n')
-	secretText = strings.TrimRight(secretText, "\r\n")
-	if secretText == "" {
-		fmt.Fprintln(os.Stderr, "Error: the value cannot be empty.")
-		os.Exit(1)
-	}
-
-	// If the user entered a path to an existing private key file, read the file directly
-	if fi, err := os.Stat(secretText); err == nil && !fi.IsDir() {
-		bytes, err := os.ReadFile(secretText)
-		if err == nil {
-			fmt.Printf("File detected (%s). Its contents will be encrypted.\n", secretText)
-			secretText = string(bytes)
-		}
-	}
-
-	fmt.Print("Enter the master password: ")
-	masterPwd, _ := reader.ReadString('\n')
-	masterPwd = strings.TrimRight(masterPwd, "\r\n")
-	if masterPwd == "" {
-		fmt.Fprintln(os.Stderr, "Error: the master password cannot be empty.")
-		os.Exit(1)
-	}
-
-	fmt.Print("Confirm the master password: ")
-	confirmPwd, _ := reader.ReadString('\n')
-	confirmPwd = strings.TrimRight(confirmPwd, "\r\n")
-	if masterPwd != confirmPwd {
-		fmt.Fprintln(os.Stderr, "Error: the passwords do not match.")
-		os.Exit(1)
-	}
-
-	enc, err := secret.Encrypt(secretText, masterPwd)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Encryption failed: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println("\n✔ Value encrypted (AES-256-GCM).")
-	fmt.Println("Copy the following line into your dym-bridge.ini:")
-	fmt.Printf("\n%s\n\n", enc)
 }

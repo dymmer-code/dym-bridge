@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/dymmer-code/dym-bridge/pkg/config"
-	"github.com/dymmer-code/dym-bridge/pkg/secret"
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
 	pkgsftp "github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -76,21 +75,6 @@ func TestCheckedItemsIgnoreFocus(t *testing.T) {
 	got := m.CheckedItems()
 	if len(got) != 1 || got[0].Path != m.Visible[0].Path {
 		t.Fatal(got)
-	}
-}
-func TestEncryptForm(t *testing.T) {
-	for _, v := range [][3]string{{"", "a", "a"}, {"secret", "", ""}, {"secret", "a", "b"}} {
-		if _, err := encryptValue(v[0], v[1], v[2]); err == nil {
-			t.Fatal(v)
-		}
-	}
-	enc, err := encryptValue("hello", "password", "password")
-	if err != nil {
-		t.Fatal(err)
-	}
-	plain, err := secret.Decrypt(enc, "password")
-	if err != nil || plain != "hello" {
-		t.Fatal(plain, err)
 	}
 }
 

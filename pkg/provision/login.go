@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/dymmer-code/dym-bridge/pkg/secret"
 	"github.com/dymmer-code/dym-bridge/pkg/version"
 )
 
@@ -32,7 +33,7 @@ type LoginOptions struct {
 // Login signs in with Dymmer through the browser, publishes the public key of this device and saves the resources it
 // received. The token is a local variable: it exists between the exchange and the provisioning call and nowhere else.
 func Login(ctx context.Context, o LoginOptions) (*Profiles, error) {
-	if o.Server == "" || o.MasterPassword == "" || o.Open == nil || o.Receiver == nil {
+	if o.Server == "" || o.Open == nil || o.Receiver == nil {
 		return nil, errors.New("the sign-in is not fully set up")
 	}
 	redirect := o.RedirectURI
@@ -70,6 +71,13 @@ func Login(ctx context.Context, o LoginOptions) (*Profiles, error) {
 		// nobody can use.
 		if _, err := profiles.Key.Signer(o.MasterPassword); err != nil {
 			return nil, err
+		}
+		if o.MasterPassword != "" && !secret.IsEncrypted(profiles.Key.Private) {
+			encrypted, err := secret.Encrypt(profiles.Key.Private, o.MasterPassword)
+			if err != nil {
+				return nil, err
+			}
+			profiles.Key.Private = encrypted
 		}
 		profiles.Server = o.Server
 	}

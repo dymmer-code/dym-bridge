@@ -6,9 +6,9 @@ import (
 	"github.com/dymmer-code/dym-bridge/pkg/config"
 )
 
-// Config builds the connection settings for one resource. The private key stays encrypted (ENC(...)): the existing
-// unlock with the master password opens it in memory. The fingerprints Dymmer reported for the server make the
-// connection refuse any other server.
+// Config builds connection settings without changing key protection. Encrypted
+// keys are unlocked in memory; unencrypted keys connect directly. Dymmer-provided
+// fingerprints pin the SSH server identity.
 func (p *Profiles) Config(index int) (*config.Config, error) {
 	if index < 0 || index >= len(p.Resources) {
 		return nil, fmt.Errorf("there is no resource number %d", index+1)

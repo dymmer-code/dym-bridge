@@ -93,7 +93,6 @@ func TestBrowserConnectionTransfersAndEmptyDirectoryRefresh(t *testing.T) {
 	finishOperation(t, b)
 	b.showSites()
 	b.showConnection()
-	b.showEncrypt()
 	b.goToFolder(b.local)
 	b.newFolder(b.local)
 	b.signIn()

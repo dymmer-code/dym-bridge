@@ -52,27 +52,20 @@ func (b *browser) sitesMenu() widget.Widget {
 	if len(items) == 0 {
 		items = append(items, menu.ItemDisabled("No interfaces provided", ""))
 	}
-	items = append(items, menu.Sep())
-	var advanced []menu.MenuItem
+
+	if len(b.manualSites) > 0 {
+		items = append(items, menu.Sep())
+	}
 	for _, link := range b.manualSites {
 		if !b.connected || b.busy {
-			advanced = append(advanced, menu.ItemDisabled(link.Name, ""))
+			items = append(items, menu.ItemDisabled(link.Name, ""))
 		} else {
-			advanced = append(advanced, menu.Item(link.Name, "", func() { b.openSite(link) }))
+			items = append(items, menu.Item(link.Name, "", func() { b.openSite(link) }))
 		}
 	}
-	if len(advanced) > 0 {
-		advanced = append(advanced, menu.Sep())
-	}
-	if b.busy {
-		advanced = append(advanced, menu.ItemDisabled("Configure manual links…", ""))
-	} else {
-		advanced = append(advanced, menu.Item("Configure manual links…", "", b.configureSites))
-	}
-	items = append(items, menu.SubMenu("Advanced", advanced...))
 
 	cs := b.theme.Colors
-	painter := sitesMenuPainter{colors: menu.MenuColorScheme{BarBackground: cs.SurfaceSecondary, BarText: cs.OnSurface, BarHover: cs.AccentLight, BarActiveText: cs.Accent, MenuBackground: cs.Surface, MenuBorder: cs.StrokeDefault, ItemText: cs.OnSurface, ItemHover: cs.AccentLight, ItemDisabledText: cs.OnSurfaceSecond, ShortcutText: cs.OnSurfaceSecond, SeparatorColor: cs.StrokeDefault, SubMenuArrow: cs.OnSurface}}
+	painter := sitesMenuPainter{colors: menu.MenuColorScheme{BarBackground: cs.SurfaceSecondary, BarText: cs.OnSurface, BarHover: cs.AccentLight, BarActiveText: cs.OnSurface, MenuBackground: cs.Surface, MenuBorder: cs.StrokeDefault, ItemText: cs.OnSurface, ItemHover: cs.AccentLight, ItemDisabledText: cs.OnSurfaceSecond, ShortcutText: cs.OnSurfaceSecond, SeparatorColor: cs.StrokeDefault, SubMenuArrow: cs.OnSurface}}
 	return menu.NewBar([]menu.TopMenu{menu.BarMenu("Sites", items...)}, menu.PainterOpt(painter))
 }
 
@@ -80,11 +73,11 @@ type sitesMenuPainter struct{ colors menu.MenuColorScheme }
 
 func (p sitesMenuPainter) PaintMenuBar(c widget.Canvas, s *menu.MenuBarPaintState) {
 	s.ColorScheme = p.colors
-	menu.DefaultPainter{}.PaintMenuBar(c, s)
+	paintSitesBar(c, s)
 }
 func (p sitesMenuPainter) PaintMenu(c widget.Canvas, s *menu.MenuPaintState) {
 	s.ColorScheme = p.colors
-	menu.DefaultPainter{}.PaintMenu(c, s)
+	paintSitesPopup(c, s)
 }
 func (b *browser) openSite(link sites.Link) {
 	if b.busy || !b.connected {

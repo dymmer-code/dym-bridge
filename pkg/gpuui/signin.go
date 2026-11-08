@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/dymmer-code/dym-bridge/pkg/callback"
 	"github.com/dymmer-code/dym-bridge/pkg/provision"
+	"github.com/dymmer-code/dym-bridge/pkg/secret"
 	p "github.com/gogpu/ui/primitives"
 	"github.com/gogpu/ui/state"
 	"github.com/gogpu/ui/widget"
@@ -22,15 +22,9 @@ func (b *browser) serverURL() string {
 	if b.server != "" {
 		return b.server
 	}
-	if b.profiles != nil && b.profiles.Server != "" {
-		return b.profiles.Server
-	}
 	return DefaultServer
 }
 func validateSignInPassword(password, confirm string, first bool) error {
-	if password == "" {
-		return fmt.Errorf("Enter a master password")
-	}
 	if first && password != confirm {
 		return fmt.Errorf("The passwords do not match")
 	}
@@ -45,18 +39,19 @@ func (b *browser) signIn() {
 		b.status.Set(err.Error())
 		return
 	}
-	_, loadErr := provision.Load(filename)
-	first := errors.Is(loadErr, provision.ErrNoProfiles)
-	server := b.field("Dymmer server", false)
-	server.SetText(b.serverURL())
+	profiles, loadErr := provision.Load(filename)
+	first := errors.Is(loadErr, provision.ErrNoProfiles) || (loadErr == nil && !secret.IsEncrypted(profiles.Key.Private))
 	password := b.field("Master password", true)
 	confirm := b.field("Repeat master password", true)
 
-	message := state.NewSignal("Your private key stays on this computer. Only the public key is published.")
-	if first {
-		message.Set("Choose a master password and keep it safe. It protects this computer’s private key.")
+	message := state.NewSignal("")
+	label := "Master password (optional)"
+	help := "The master password protects the private SSH key used to connect to your server. Leave it blank to store the key unencrypted on this computer."
+	if !first && loadErr == nil {
+		label = "Master password"
+		help = "The master password protects your private SSH key. This device’s key is already encrypted, so enter its existing password."
 	}
-	children := []widget.Widget{b.text("Dymmer server", 12), server, b.text("Master password", 12), password}
+	children := []widget.Widget{b.text(label, 12), password, b.helpText(help)}
 	if first {
 		children = append(children, b.text("Repeat master password", 12), confirm)
 	}
@@ -67,7 +62,6 @@ func (b *browser) signIn() {
 				message.Set(err.Error())
 				return
 			}
-			b.server = strings.TrimSpace(server.Text())
 			master := password.Text()
 			password.SetText("")
 			confirm.SetText("")

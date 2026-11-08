@@ -9,7 +9,6 @@ import (
 	"github.com/dymmer-code/dym-bridge/pkg/local"
 	"github.com/dymmer-code/dym-bridge/pkg/provision"
 	"github.com/dymmer-code/dym-bridge/pkg/sftp"
-	"github.com/gogpu/ui/core/button"
 	"github.com/gogpu/ui/core/scrollview"
 	"github.com/gogpu/ui/core/textfield"
 	p "github.com/gogpu/ui/primitives"
@@ -246,7 +245,7 @@ func (b *browser) showFormWithBack(title string, back func(), children ...widget
 	if b.busy {
 		return
 	}
-	content := []widget.Widget{p.HBox(b.text(title, 18).Bold(), p.Expanded(p.Box()), b.action("Back", false, back)).CrossAlign(p.CrossAxisCenter), b.rule()}
+	content := []widget.Widget{p.HBox(b.text(title, 18).Bold(), p.Expanded(p.Box()), b.iconAction("Back", backIcon, back)).CrossAlign(p.CrossAxisCenter), b.rule()}
 	content = append(content, children...)
 	form := p.VBox(content...).Gap(12).Padding(24)
 	b.ui.SetRoot(p.VBox(p.Expanded(scrollview.New(p.HBox(p.Expanded(p.Box()), p.Box(form).Width(600), p.Expanded(p.Box()))))).Background(b.theme.Colors.Surface))
@@ -256,27 +255,13 @@ func (b *browser) showConnection() {
 	if b.busy {
 		return
 	}
-	file := b.field("Configuration file (.ini)", false)
-	file.SetText(b.configPath)
-	message := state.NewSignal("Choose an existing configuration or a saved resource.")
-	children := []widget.Widget{b.action("Sign in with Dymmer…", true, b.signIn), b.text("Configuration file", 12), file, p.TextFn(func() string { return message.Get() }).FontSize(12).MaxLines(2), b.action("Connect", true, func() {
-		cfg, err := config.Load(strings.TrimSpace(file.Text()))
-		if err != nil {
-			message.Set("Could not load configuration. Check the path and INI settings.")
-			return
-		}
-		b.configPath = strings.TrimSpace(file.Text())
-		b.connect(cfg)
-	})}
+	message := state.NewSignal("")
+	children := []widget.Widget{}
 	if filename, err := b.profilePath(); err == nil {
 		if profiles, err := provision.Load(filename); err == nil {
 			b.profiles = profiles
-			if len(profiles.Resources) == 0 {
-				children = append(children, b.text("No site is shared with you yet. Sign in again after access is granted.", 12))
-			}
-			children = append(children, b.rule(), b.text("Saved resources", 13))
 			for i, r := range profiles.Resources {
-				children = append(children, b.action(r.Label(), false, func() {
+				children = append(children, b.iconAction(r.Label(), connectIcon, func() {
 					cfg, err := profiles.Config(i)
 					if err != nil {
 						message.Set(err.Error())
@@ -287,11 +272,21 @@ func (b *browser) showConnection() {
 			}
 		}
 	}
-	children = append(children, b.rule(), b.text("Advanced", 13), b.action("Start over…", false, b.startOver), b.action("Browse for INI…", false, b.browseINI), b.action("Create sample INI…", false, b.saveSampleINI),
-		b.action("Encrypt configuration value…", false, func() {
-			b.configPath = file.Text()
-			b.showEncrypt()
-		}))
+	if b.configPath != "" {
+		if cfg, err := config.Load(b.configPath); err == nil {
+			children = append(children, b.iconAction(cfg.SSH.Host, connectIcon, func() { b.connect(cfg) }))
+		} else {
+			message.Set("Could not load the configuration. Choose a valid INI file.")
+		}
+	}
+	if len(children) > 0 {
+		children = append([]widget.Widget{b.text("Saved resources", 13)}, children...)
+	} else {
+		children = append(children, b.action("Choose INI file…", true, b.browseINI), b.action("Create INI file…", false, b.saveSampleINI),
+			b.helpText("Dymmer can automatically set up your key and connection resources."),
+			b.action("Sign in with Dymmer", false, b.signIn))
+	}
+	children = append(children, p.TextFn(func() string { return message.Get() }).FontSize(12).Color(b.theme.Colors.OnSurfaceSecond).MaxLines(2))
 	b.showForm("Connection", children...)
 }
 func (b *browser) showUnlock(cfg *config.Config) {
@@ -306,32 +301,4 @@ func (b *browser) showUnlock(cfg *config.Config) {
 		password.SetText("")
 		b.connect(&unlocked)
 	}))
-}
-func (b *browser) showEncrypt() {
-	value := b.field("Value to encrypt", false)
-	password := b.field("Master password", true)
-	confirm := b.field("Confirm password", true)
-	result := b.field("ENC(…)", false)
-	message := state.NewSignal("Create an ENC(…) value for credentials in your INI configuration.")
-	b.showFormWithBack("Encrypt configuration value", b.showConnection, b.text("Value", 12), value, b.text("Master password", 12), password, b.text("Confirm master password", 12), confirm,
-		p.TextFn(func() string { return message.Get() }).FontSize(12).MaxLines(2),
-		b.action("Encrypt", true, func() {
-			enc, err := encryptValue(value.Text(), password.Text(), confirm.Text())
-			if err != nil {
-				message.Set(err.Error())
-				result.SetText("")
-				return
-			}
-			result.SetText(enc)
-			message.Set("Encrypted value ready to copy")
-		}), b.text("Encrypted value", 12), result, b.action("Copy", false, func() {
-			if result.Text() == "" {
-				return
-			}
-			if err := b.gpu.ClipboardWrite(result.Text()); err != nil {
-				message.Set("Could not copy to clipboard")
-				return
-			}
-			message.Set("Copied to clipboard")
-		}, button.DisabledFn(func() bool { return result.Text() == "" })))
 }
