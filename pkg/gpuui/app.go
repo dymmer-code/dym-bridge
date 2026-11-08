@@ -21,8 +21,6 @@ import (
 	"github.com/gogpu/ui/widget"
 )
 
-var documentIcon = icon.FromSVG("document", 24, "M6 3 L15 3 L19 7 L19 21 L6 21 Z M15 3 L15 7 L19 7 M9 11 L16 11 M9 14 L16 14 M9 17 L14 17")
-
 type browser struct {
 	ui            *app.App
 	gpu           *gogpu.App

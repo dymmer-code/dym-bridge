@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gogpu/ui/geometry"
 	"github.com/gogpu/ui/icon"
 	"github.com/gogpu/ui/widget"
 )
@@ -61,36 +60,64 @@ var videoFileIcon = icon.IconData{Name: "video-file", ViewBox: 24, Ops: []icon.P
 	icon.Move(9, 8), icon.Line(16, 12), icon.Line(9, 16), icon.ClosePath(),
 }}
 
+// A shared 18x18 document silhouette keeps every file type, including unknown
+// files, at the same optical size as the approved media pictograms.
+func documentGlyph(name string, mark ...icon.PathOp) icon.IconData {
+	ops := []icon.PathOp{
+		icon.Move(3, 3), icon.Line(15, 3), icon.Line(21, 9), icon.Line(21, 21), icon.Line(3, 21), icon.ClosePath(),
+		icon.Move(15, 3), icon.Line(15, 9), icon.Line(21, 9),
+	}
+	return icon.IconData{Name: name, ViewBox: 24, StrokeWidth: 1.5, Ops: append(ops, mark...)}
+}
+
+var documentIcon = documentGlyph("file")
+var codeFileIcon = documentGlyph("file-code",
+	icon.Move(8, 11), icon.Line(5, 14), icon.Line(8, 17),
+	icon.Move(16, 11), icon.Line(19, 14), icon.Line(16, 17),
+	icon.Move(13, 11), icon.Line(11, 17))
+var scriptFileIcon = documentGlyph("file-script",
+	icon.Move(13, 10), icon.Line(8, 15), icon.Line(12, 15), icon.Line(11, 19), icon.Line(17, 13), icon.Line(13, 13), icon.ClosePath())
+var styleFileIcon = documentGlyph("file-style",
+	icon.Move(16, 10), icon.Line(10, 16), icon.Line(8, 14), icon.Line(14, 8),
+	icon.Move(10, 16), icon.Line(9, 19), icon.Line(5, 19), icon.Line(6, 15), icon.Line(8, 14))
+var dataFileIcon = documentGlyph("file-data",
+	icon.Move(9, 10), icon.Line(7, 10), icon.Line(7, 13), icon.Line(5, 14), icon.Line(7, 15), icon.Line(7, 18), icon.Line(9, 18),
+	icon.Move(15, 10), icon.Line(17, 10), icon.Line(17, 13), icon.Line(19, 14), icon.Line(17, 15), icon.Line(17, 18), icon.Line(15, 18))
+var configFileIcon = documentGlyph("file-config",
+	icon.Move(6, 12), icon.Line(18, 12), icon.Move(6, 17), icon.Line(18, 17),
+	icon.Move(9, 10), icon.Line(9, 14), icon.Move(15, 15), icon.Line(15, 19))
+var textFileIcon = documentGlyph("file-text",
+	icon.Move(6, 11), icon.Line(12, 11), icon.Move(6, 14), icon.Line(18, 14), icon.Move(6, 17), icon.Line(15, 17))
+var markdownFileIcon = documentGlyph("file-markdown",
+	icon.Move(6, 11), icon.Line(11, 11), icon.Move(6, 14), icon.Line(10, 14),
+	icon.Move(15, 11), icon.Line(15, 18), icon.Move(12, 15), icon.Line(15, 18), icon.Line(18, 15))
+var archiveFileIcon = documentGlyph("file-archive",
+	icon.Move(10, 5), icon.Line(12, 5), icon.Line(12, 8), icon.Line(10, 8), icon.Line(10, 11), icon.Line(12, 11), icon.Line(12, 14),
+	icon.Move(10, 15), icon.Line(13, 15), icon.Line(13, 18), icon.Line(10, 18), icon.ClosePath())
+var pdfFileIcon = documentGlyph("file-pdf",
+	icon.Move(7, 18), icon.Cubic(10, 15, 14, 6, 11, 10), icon.Cubic(9, 13, 14, 17, 18, 15), icon.Cubic(14, 14, 8, 16, 7, 18))
+var databaseFileIcon = documentGlyph("file-database",
+	icon.Move(7, 12), icon.Cubic(7, 10, 17, 10, 17, 12), icon.Cubic(17, 14, 7, 14, 7, 12),
+	icon.Line(7, 17), icon.Cubic(7, 19, 17, 19, 17, 17), icon.Line(17, 12))
+
 type fileIconStyle struct {
-	label, badge string
-	color        uint32
+	label string
+	image icon.IconData
+	color uint32
 }
 
 var fileStyles = map[string]fileIconStyle{
-	"php": {"PHP source", "PHP", 0x7965B2}, "html": {"HTML document", "<>", 0xC45A32},
-	"css": {"Stylesheet", "CSS", 0x3278BC}, "js": {"JavaScript source", "JS", 0x987511},
-	"ts": {"TypeScript source", "TS", 0x3178C6}, "go": {"Go source", "Go", 0x16849B},
-	"json": {"JSON data", "{}", 0x91701F}, "config": {"Configuration file", "CFG", 0x687684},
-	"markdown": {"Markdown document", "MD", 0x507CA3}, "xml": {"XML document", "XML", 0xB06B32},
-	"sql": {"SQL source", "SQL", 0x567FA1}, "code": {"Source code", "</>", 0x7C6BAD},
-	"archive": {"Archive", "ZIP", 0x9A763F}, "pdf": {"PDF document", "PDF", 0xBD4B51},
-	"text": {"Text document", "TXT", 0x687684}, "document": {"Document", "DOC", 0x3E79AE},
-	"image": {"Image", "", 0x36916B}, "audio": {"Audio", "", 0x9961AE}, "video": {"Video", "", 0xB35A7A},
+	"php": {"PHP source", codeFileIcon, 0x7965B2}, "html": {"HTML document", codeFileIcon, 0xC45A32},
+	"css": {"Stylesheet", styleFileIcon, 0x3278BC}, "js": {"JavaScript source", scriptFileIcon, 0x987511},
+	"ts": {"TypeScript source", scriptFileIcon, 0x3178C6}, "go": {"Go source", codeFileIcon, 0x16849B},
+	"json": {"JSON data", dataFileIcon, 0x91701F}, "config": {"Configuration file", configFileIcon, 0x687684},
+	"markdown": {"Markdown document", markdownFileIcon, 0x507CA3}, "xml": {"XML document", codeFileIcon, 0xB06B32},
+	"sql": {"SQL source", databaseFileIcon, 0x567FA1}, "code": {"Source code", codeFileIcon, 0x7C6BAD},
+	"archive": {"Archive", archiveFileIcon, 0x9A763F}, "pdf": {"PDF document", pdfFileIcon, 0xBD4B51},
+	"text": {"Text document", textFileIcon, 0x687684}, "document": {"Document", textFileIcon, 0x3E79AE},
+	"image": {"Image", imageFileIcon, 0x36916B}, "audio": {"Audio", audioFileIcon, 0x9961AE}, "video": {"Video", videoFileIcon, 0xB35A7A},
 }
 
-type fileBadge struct {
-	*icon.IconWidget
-	text string
-	tint widget.Color
-}
-
-func (g *fileBadge) Draw(_ widget.Context, c widget.Canvas) {
-	bounds := g.Bounds()
-	box := geometry.NewRect(bounds.Min.X, bounds.Min.Y+3, 20, 14)
-	c.DrawRoundRect(box, g.tint.WithAlpha(.14), 2)
-	c.StrokeRoundRect(box, g.tint.WithAlpha(.7), 2, .7)
-	c.DrawText(g.text, box, 7.5, g.tint, true, widget.TextAlignCenter)
-}
 func (b *browser) fileGlyph(name string, directory bool) widget.Widget {
 	kind := fileKind(name, directory)
 	cs := b.theme.Colors
@@ -105,18 +132,5 @@ func (b *browser) fileGlyph(name string, directory bool) widget.Widget {
 	if b.dark {
 		tint = tint.Lerp(widget.Hex(0xFFFFFF), .3)
 	}
-	image := documentIcon
-	switch kind {
-	case "image":
-		image = imageFileIcon
-	case "audio":
-		image = audioFileIcon
-	case "video":
-		image = videoFileIcon
-	}
-	base := icon.NewIcon(image, icon.Size(20), icon.Color(tint), icon.Label(style.label))
-	if style.badge != "" {
-		return &fileBadge{IconWidget: base, text: style.badge, tint: tint}
-	}
-	return base
+	return icon.NewIcon(style.image, icon.Size(20), icon.Color(tint), icon.Label(style.label))
 }

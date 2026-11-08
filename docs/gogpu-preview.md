@@ -181,3 +181,13 @@ labels remain English. Static geometry and extension maps add no dependencies,
 thumbnail decoding or per-file bitmap cache. Classification tests, preview-test
 and CGo-free bundle pass. Inspected all requested types using 14 empty fixture
 files under /tmp/dym-bridge-icon-preview in the macOS window.
+
+## Document icon revision (#436)
+
+User review approved the media pictograms but rejected text badges. Replace
+badges with outline documents and semantic marks (code brackets, script bolt,
+stylesheet brush, data braces, archive zipper, PDF curve, text lines). Unknown
+files share the same 18x18 silhouette in the 24-unit viewbox, rendered in the
+same 20px slot. Image/audio/video geometry remains unchanged. No text rendering
+is needed for file icons. Existing classification tests and preview-test pass;
+CGo-free bundle and macOS visual comparison of the complete sample set pass.
