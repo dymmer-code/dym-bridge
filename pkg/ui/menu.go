@@ -15,6 +15,8 @@ import (
 func (a *App) buildMenu() {
 	file := fyne.NewMenu("Dym Bridge",
 		fyne.NewMenuItem("Sign in with Dymmer…", a.signIn),
+		fyne.NewMenuItem("Reconnect", a.Connect),
+		fyne.NewMenuItem("Choose a site…", a.chooseSite),
 		fyne.NewMenuItem("Start over…", a.startOver),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Settings…", a.showSettings),
@@ -37,4 +39,13 @@ func (a *App) showSettings() {
 	d := dialog.NewCustom("Settings", "Close", content, a.window)
 	d.Resize(fyne.NewSize(440, 260))
 	d.Show()
+}
+
+// chooseSite goes back to the list of sites Dymmer gave this computer, closing the current connection.
+func (a *App) chooseSite() {
+	if a.profiles == nil {
+		return
+	}
+	a.tunnelMgr.Disconnect()
+	a.showResources()
 }

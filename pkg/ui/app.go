@@ -78,6 +78,7 @@ func NewApp(cfg *config.Config, profiles *provision.Profiles) *App {
 
 func (a *App) setupConnectedUI() {
 	a.explorer = NewExplorerView(a.window, a.tunnelMgr, a.config.SFTP.RemotePath)
+	a.explorer.OnReconnect = a.Connect
 
 	// Setup drag & drop upload support
 	a.window.SetOnDropped(func(pos fyne.Position, uris []fyne.URI) {

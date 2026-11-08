@@ -31,6 +31,9 @@ type ExplorerView struct {
 	btnUpload       *widget.Button
 	btnDownload     *widget.Button
 	globalStatusBar *widget.Label
+	reconnectBtn    *widget.Button
+	// OnReconnect tries the connection again; it is offered when the connection failed or ended.
+	OnReconnect func()
 
 	// --- Left Pane (Local) ---
 	localPath         string
@@ -70,11 +73,11 @@ func NewExplorerView(window fyne.Window, tm *tunnel.Manager, initialRemotePath s
 	initialLocalPath := local.DefaultLocalDir()
 
 	ev := &ExplorerView{
-		window:      window,
-		tunnelMgr:   tm,
-		localPath:   initialLocalPath,
-		remotePath:  initialRemotePath,
-		remoteRoot:  initialRemotePath,
+		window:     window,
+		tunnelMgr:  tm,
+		localPath:  initialLocalPath,
+		remotePath: initialRemotePath,
+		remoteRoot: initialRemotePath,
 	}
 
 	ev.buildUI()
@@ -130,10 +133,17 @@ func (ev *ExplorerView) buildUI() {
 	ev.globalStatusBar.Truncation = fyne.TextTruncateEllipsis
 	ev.globalStatusBar.Importance = widget.LowImportance
 
+	ev.reconnectBtn = widget.NewButtonWithIcon("Reconnect", theme.ViewRefreshIcon(), func() {
+		if ev.OnReconnect != nil {
+			ev.OnReconnect()
+		}
+	})
+	ev.reconnectBtn.Hide()
+
 	// 6. Master Layout
 	ev.mainContainer = container.NewBorder(
 		container.NewVBox(topBar, widget.NewSeparator()),
-		container.NewVBox(widget.NewSeparator(), ev.globalStatusBar),
+		container.NewVBox(widget.NewSeparator(), container.NewBorder(nil, nil, nil, ev.reconnectBtn, ev.globalStatusBar)),
 		nil, nil,
 		ev.splitContainer,
 	)
@@ -365,6 +375,7 @@ func (ev *ExplorerView) UpdateTunnelStatus(st tunnel.State, msg string) {
 
 		switch st {
 		case tunnel.StateConnected:
+			ev.reconnectBtn.Hide()
 			ev.globalStatusBar.Importance = widget.LowImportance
 			ev.globalStatusBar.SetText("Tunnel active and secure.")
 			ev.openAdminBtn.Enable()
@@ -385,11 +396,13 @@ func (ev *ExplorerView) UpdateTunnelStatus(st tunnel.State, msg string) {
 			}
 
 		case tunnel.StateConnecting:
+			ev.reconnectBtn.Hide()
 			ev.globalStatusBar.Importance = widget.LowImportance
 			ev.globalStatusBar.SetText("Establishing SSH connection...")
 			ev.disableRemoteUI("Connecting...")
 
 		case tunnel.StateError:
+			ev.reconnectBtn.Show()
 			ev.globalStatusBar.Importance = widget.DangerImportance
 			errMsg := "Connection error"
 			if msg != "" {
@@ -399,6 +412,7 @@ func (ev *ExplorerView) UpdateTunnelStatus(st tunnel.State, msg string) {
 			ev.disableRemoteUI("Connection failed")
 
 		default:
+			ev.reconnectBtn.Show()
 			ev.globalStatusBar.Importance = widget.LowImportance
 			ev.globalStatusBar.SetText("")
 			ev.disableRemoteUI("Disconnected")
