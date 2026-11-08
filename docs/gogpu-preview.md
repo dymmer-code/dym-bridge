@@ -158,3 +158,14 @@ click regression now also asserts that help participates in retained rendering.
 Verified together in macOS: visible Select/deselect all tooltip over four checked
 rows, then a single click with the help open clears all four. preview-test and
 preview-bundle pass with CGo disabled.
+
+## Path abbreviation (#434)
+
+Long pane paths replace intermediate components with an ellipsis, preserving
+complete trailing folders and as much leading context as fits. Actual font
+measurement determines available space on every draw, including after resize.
+If the last component itself cannot fit, retain its ending with a leading
+ellipsis. This is presentation-only; navigation keeps the full original path.
+Tests cover POSIX, Windows separators, Unicode, roots and very narrow widths.
+preview-test and CGo-free preview-bundle pass. macOS resizing verified a long
+module path compacted to /Users/…/pkg/mod/github.com/gogpu/ui@v0.1.55/core/popover.

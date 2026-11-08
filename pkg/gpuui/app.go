@@ -158,7 +158,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	if m.Demo {
 		paneIcon = serverIcon
 	}
-	heading := p.HBox(icon.NewIcon(paneIcon, icon.Size(18), icon.Color(cs.OnSurfaceSecond), icon.Label(title)), p.Expanded(b.text(m.Path, 12))).PaddingXY(10, 5).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
+	heading := p.HBox(icon.NewIcon(paneIcon, icon.Size(18), icon.Color(cs.OnSurfaceSecond), icon.Label(title)), p.Expanded(b.text(m.Path, 12).Path())).PaddingXY(10, 5).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
 	transferLabel := "Upload"
 	transferIcon := uploadIcon
 	if m.Demo {

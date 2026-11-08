@@ -13,6 +13,7 @@ type cellText struct {
 	size  float32
 	color widget.Color
 	bold  bool
+	path  bool
 }
 
 func (t *cellText) Bold() *cellText { t.bold = true; t.TextWidget.Bold(); return t }
@@ -23,7 +24,9 @@ func (t *cellText) Draw(_ widget.Context, c widget.Canvas) {
 	}
 	text := t.Content()
 	width := bounds.Width()
-	if c.MeasureText(text, t.size, t.bold) > width {
+	if t.path {
+		text = compactPath(text, width, func(s string) float32 { return c.MeasureText(s, t.size, t.bold) })
+	} else if c.MeasureText(text, t.size, t.bold) > width {
 		runes := []rune(text)
 		lo, hi := 0, len(runes)
 		for lo < hi {
