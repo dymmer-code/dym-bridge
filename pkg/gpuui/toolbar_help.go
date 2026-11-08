@@ -68,7 +68,11 @@ func (w *paneToolbar) showHelp(ctx widget.Context, point geometry.Point) {
 		}
 		text := target.Label
 		if target.Disabled {
-			text += " · Not available in this preview"
+			if text == "New folder" || text == "Delete" {
+				text += " · Not available in this preview"
+			} else {
+				text += " · Unavailable"
+			}
 		}
 		if w.tip != nil && w.tip.text == text {
 			return

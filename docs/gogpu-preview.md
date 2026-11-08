@@ -2,30 +2,47 @@
 
 Experimental branch: `codex/gogpu-ui-prototype`. Tracking: Dymmer Backlog #423.
 
-This is a **read-only UX prototype**, not a replacement for the production client.
+This is a **functional UI preview**, not a replacement for the production client.
 It uses GoGPU UI v0.1.55, Fluent widgets and Metal on macOS. No WebView and no
 CGo are used by the preview executable. The existing Fyne executable is unchanged.
 
 ## Run
 
 ```sh
-make preview
-# Or choose a local directory:
-./bin/dym-bridge-gpu -dir /path/to/folder
-# Independent macOS app, with its own application identifier:
 make preview-bundle
 open 'bin/Dym Bridge Preview.app'
+# Or choose a local directory and configuration (connection remains explicit):
+./bin/dym-bridge-gpu -dir /path/to/folder -config /path/to/dym-bridge.ini
 ```
 
-The left pane lists real local files using the existing local/SFTP item model.
-The right pane is explicitly labeled demonstration data. Double-click a folder
-or press Enter to open it; the parent-folder arrow navigates up. The window header provides a
-light/dark theme switch and a synthetic 10,000-file workload. Lists are virtualized
-with fixed row heights.
+The local pane lists real files; the remote pane starts disconnected. Use
+**Connect… / Connection…** to enter an INI path or choose a resource already
+saved by the original client. Encrypted credentials prompt for the master
+password and are unlocked only in memory. The preview does not provision new
+resources or save modified credentials. Connect is always explicit.
 
-No credentials are loaded, no SSH connection is made, and no file is changed.
-Transfers, login, tray integration, native file drops, modifier-key multiselection and real
-remote browsing are not wired up. The transfer area explains that limitation.
+The top bar restores **Encrypt…, Upload, Download, Web Admin**. Checked items
+control the transfer counts and enabled states. Transfers support files and
+recursive directories through the existing SFTP client, including its overwrite
+behavior. A compact bottom strip displays real per-file byte progress and total
+selected-item completion, with completion/error feedback and refreshed listings.
+Web Admin is enabled only for a connected configuration with a web tunnel.
+
+Pane footers show item/selection counts; the status footer shows connection,
+operation errors, Connect/Reconnect, Disconnect and Connection settings. Theme
+switching remains available. The former demo data, stress button and fictitious
+queue are removed from the normal UI. Double-click folders or press Enter to
+navigate; select files using checkboxes or Space.
+
+**Remaining migration scope:** new-folder/delete pane commands, OAuth sign-in,
+tray integration, native file drops, transfer cancellation, and accessibility.
+New-folder/delete remain visibly disabled. Local navigation is still synchronous;
+SSH, remote listing and transfers run off the UI thread with one operation at a
+time and bounded, coalesced progress updates. The session is closed on app exit.
+
+Encrypt and connection forms use the native widget tree, because the current
+library dialog surface does not dispatch editable-content events. No WebView or
+new dependencies were added.
 
 ## Verification
 
@@ -191,3 +208,13 @@ files share the same 18x18 silhouette in the 24-unit viewbox, rendered in the
 same 20px slot. Image/audio/video geometry remains unchanged. No text rendering
 is needed for file icons. Existing classification tests and preview-test pass;
 CGo-free bundle and macOS visual comparison of the complete sample set pass.
+
+## Functional bars (#438)
+
+The user's request to restore the original bar functionality supersedes the
+read-only scope of the earlier historical revisions below. Reuses config,
+provision, tunnel, SFTP and secret packages. Loopback integration tests cover
+recursive upload/download and reconnect with a pinned ephemeral SSH host key.
+Unit tests cover checked-versus-focused selection, failure short-circuiting and
+encryption validation/compatibility. Native UI verification covers the bars and
+encryption/connection forms.
