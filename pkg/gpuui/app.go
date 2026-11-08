@@ -153,10 +153,10 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	// Two rows only: identity/path, then familiar compact file commands.
 	heading := p.HBox(b.text(title, 12).Bold(), p.Expanded(b.text(m.Path, 12))).PaddingXY(10, 5).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
 	transferLabel := "Subir"
-	transferIcon := upIcon
+	transferIcon := uploadIcon
 	if m.Demo {
 		transferLabel = "Descargar"
-		transferIcon = downIcon
+		transferIcon = downloadIcon
 	}
 	disabled := func(label string, image icon.IconData) toolbar.Item {
 		item := toolbar.IconButton(label, image, nil)

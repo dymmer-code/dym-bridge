@@ -11,7 +11,12 @@ import (
 var newFolderIcon = icon.FromSVG("new-folder", 24, "M2 5 L9 5 L11 8 L22 8 L22 21 L2 21 Z M15 11 L15 18 M11.5 14.5 L18.5 14.5")
 
 var upIcon = icon.FromSVG("up", 24, "M12 4 L5 11 L7 13 L11 9 L11 20 L13 20 L13 9 L17 13 L19 11 Z")
-var downIcon = icon.FromSVG("down", 24, "M12 20 L5 13 L7 11 L11 15 L11 4 L13 4 L13 15 L17 11 L19 13 Z")
+
+// Transfer arrows share an open box, distinct from parent-folder navigation.
+const transferBox = "M3 14 L5 14 L5 20 L19 20 L19 14 L21 14 L21 22 L3 22 Z"
+
+var uploadIcon = icon.FromSVG("upload-box", 24, "M12 2 L6 8 L7.5 9.5 L11 6 L11 16 L13 16 L13 6 L16.5 9.5 L18 8 Z "+transferBox)
+var downloadIcon = icon.FromSVG("download-box", 24, "M11 2 L13 2 L13 12 L16.5 8.5 L18 10 L12 16 L6 10 L7.5 8.5 L11 12 Z "+transferBox)
 
 // Use the same Fluent palette as the rest of the window; the toolkit's default
 // toolbar painter has hard-coded light colors and no Fluent implementation yet.
