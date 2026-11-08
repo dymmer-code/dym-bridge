@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -28,6 +27,7 @@ type App struct {
 	explorer   *ExplorerView
 	sftpClient *sftp.Client
 	profiles   *provision.Profiles
+	server     string // the Dymmer to sign in with when the user changed it in Settings
 }
 
 // NewApp initializes the dym-bridge desktop application.
@@ -58,12 +58,19 @@ func NewApp(cfg *config.Config, profiles *provision.Profiles) *App {
 	case profiles != nil && len(profiles.Resources) > 0:
 		dymApp.showResources()
 	default:
-		dymApp.setupMissingConfigUI()
+		dymApp.showWelcome()
 	}
 
-	// Stay resident in tray when window close button (X) is clicked
+	dymApp.buildMenu()
+
+	// With a tray icon the application stays resident when the window is closed; without one there would be no way
+	// back to the window, so closing it ends the application.
 	w.SetCloseIntercept(func() {
-		w.Hide()
+		if dymApp.trayMgr != nil {
+			w.Hide()
+			return
+		}
+		a.Quit()
 	})
 
 	return dymApp
@@ -124,72 +131,44 @@ func (a *App) setupConnectedUI() {
 		}
 	})
 
+	a.window.Resize(fyne.NewSize(680, 480))
 	a.window.SetContent(a.explorer.Container())
 }
 
-func (a *App) setupMissingConfigUI() {
-	header := widget.NewLabel("Configuration dym-bridge.ini Not Found")
-	header.TextStyle = fyne.TextStyle{Bold: true}
-
-	var checkedPaths strings.Builder
-	checkedPaths.WriteString("Configuration file was not found in any of the following paths:\n\n")
-	for _, p := range config.CandidatePaths() {
-		checkedPaths.WriteString(fmt.Sprintf(" • %s\n", p))
-	}
-	checkedPaths.WriteString("\nYou can generate a sample template in the current directory or select an existing file:")
-
-	desc := widget.NewLabel(checkedPaths.String())
-	desc.Wrapping = fyne.TextWrapWord
-
-	btnCreateSample := widget.NewButtonWithIcon("Create sample dym-bridge.ini", theme.DocumentCreateIcon(), func() {
-		samplePath := config.DefaultConfigFileName
-		if err := os.WriteFile(samplePath, []byte(config.SampleConfigTemplate()), 0644); err != nil {
-			dialog.ShowError(fmt.Errorf("error creating %s: %w", samplePath, err), a.window)
+// useIniFile loads a configuration file chosen by the user (the manual way, for hosts Dymmer does not know).
+func (a *App) useIniFile() {
+	dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
+		if err != nil || reader == nil {
 			return
 		}
-		dialog.ShowInformation("Template Created",
-			fmt.Sprintf("The sample configuration file %s has been created.\nEdit it with your server details and restart dym-bridge.", samplePath),
-			a.window)
-	})
-	btnCreateSample.Importance = widget.HighImportance
+		filePath := reader.URI().Path()
+		_ = reader.Close()
 
-	btnSelectFile := widget.NewButtonWithIcon("Select existing .ini file...", theme.FolderOpenIcon(), func() {
-		dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
-			if err != nil || reader == nil {
-				return
-			}
-			filePath := reader.URI().Path()
-			_ = reader.Close()
+		cfg, err := config.Load(filePath)
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("invalid configuration file: %w", err), a.window)
+			return
+		}
 
-			cfg, err := config.Load(filePath)
-			if err != nil {
-				dialog.ShowError(fmt.Errorf("invalid configuration file: %w", err), a.window)
-				return
-			}
+		a.config = cfg
+		a.tunnelMgr.SetConfig(cfg)
+		a.setupConnectedUI()
+		if a.config.HasEncryptedCredentials() {
+			a.promptMasterPassword()
+		} else {
+			a.Connect()
+		}
+	}, a.window)
+}
 
-			a.config = cfg
-			a.tunnelMgr.SetConfig(cfg)
-			a.setupConnectedUI()
-			if a.config.HasEncryptedCredentials() {
-				a.promptMasterPassword()
-			} else {
-				a.Connect()
-			}
-		}, a.window)
-	})
-
-	btnSignIn := widget.NewButtonWithIcon("Sign in with Dymmer", theme.LoginIcon(), a.signIn)
-	btnSignIn.Importance = widget.HighImportance
-
-	actions := container.NewHBox(btnSignIn, btnCreateSample, btnSelectFile)
-	content := container.NewVBox(
-		header,
-		desc,
-		widget.NewSeparator(),
-		actions,
-	)
-
-	a.window.SetContent(container.NewPadded(content))
+// createSampleIni writes a template configuration file in the current directory.
+func (a *App) createSampleIni() {
+	samplePath := config.DefaultConfigFileName
+	if err := os.WriteFile(samplePath, []byte(config.SampleConfigTemplate()), 0o644); err != nil {
+		dialog.ShowError(fmt.Errorf("error creating %s: %w", samplePath, err), a.window)
+		return
+	}
+	dialog.ShowInformation("Template created", samplePath, a.window)
 }
 
 func (a *App) promptMasterPassword() {
