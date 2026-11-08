@@ -72,6 +72,9 @@ func TestTooltipDoesNotConsumeToolbarClicks(t *testing.T) {
 		if stack.IsEmpty() {
 			t.Fatal("expected tooltip before click")
 		}
+		if !w.tip.IsRepaintBoundary() {
+			t.Fatal("tooltip is absent from retained overlay rendering")
+		}
 		send(event.MousePress)
 		send(event.MouseRelease)
 		want := 0

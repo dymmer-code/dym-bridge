@@ -147,3 +147,14 @@ press/release pairs through the real overlay stack, opening help before each;
 the selection alternates all/none on every pair. The original behavior failed
 on the first click. macOS verification confirmed one click selects four demo
 rows and the next clears them. preview-test and CGo-free preview-bundle pass.
+
+## Tooltip rendering regression (#433)
+
+GoGPU UI v0.1.55 does provide popover.NewTooltip to wrap widgets; toolbar items
+have no direct tooltip option. The passive adapter in #432 omitted the upstream
+manager's SetRepaintBoundary(true), so retained rendering skipped tooltip content.
+Restore that registration without reverting event transparency. The consecutive
+click regression now also asserts that help participates in retained rendering.
+Verified together in macOS: visible Select/deselect all tooltip over four checked
+rows, then a single click with the help open clears all four. preview-test and
+preview-bundle pass with CGo disabled.

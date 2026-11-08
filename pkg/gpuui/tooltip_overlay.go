@@ -31,6 +31,11 @@ type helpOverlayManager struct {
 }
 
 func (m *helpOverlayManager) PushOverlay(w widget.Widget, dismiss func()) {
+	// Match windowOverlayManager: retained rendering only composites overlay
+	// content registered as a repaint boundary. Event transparency is separate.
+	if b, ok := w.(interface{ SetRepaintBoundary(bool) }); ok {
+		b.SetRepaintBoundary(true)
+	}
 	o := &passiveHelpOverlay{overlay.NewContainer(w, m.ctx.WindowSize(), overlay.WithOnDismiss(dismiss))}
 	m.stack.Push(o)
 	widget.MountTree(o, m.ctx)
