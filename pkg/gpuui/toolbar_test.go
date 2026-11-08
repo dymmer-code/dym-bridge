@@ -24,14 +24,14 @@ func TestToolbarHelpIncludesDisabledAndCloses(t *testing.T) {
 	stack := &tipStack{}
 	ctx.SetOverlayManager(stack)
 	ctx.SetWindowSize(geometry.Sz(800, 600))
-	w := newPaneToolbar(fluent.NewTheme(), toolbar.IconButton("Actualizar", upIcon, nil))
+	w := newPaneToolbar(fluent.NewTheme(), toolbar.IconButton("Refresh", upIcon, nil))
 	w.SetBounds(geometry.NewRect(100, 50, 300, 32))
-	w.targets = []toolbar.PaintButtonState{{Label: "Eliminar", Disabled: true, Bounds: geometry.NewRect(0, 0, 28, 28)}}
+	w.targets = []toolbar.PaintButtonState{{Label: "Delete", Disabled: true, Bounds: geometry.NewRect(0, 0, 28, 28)}}
 	move := func(x float32) {
 		w.Event(ctx, event.NewMouseEvent(event.MouseMove, event.ButtonNone, 0, geometry.Pt(x, 60), geometry.Pt(x, 60), 0))
 	}
 	move(110)
-	if stack.current == nil || w.tip.text != "Eliminar · No disponible en esta vista previa" {
+	if stack.current == nil || w.tip.text != "Delete · Not available in this preview" {
 		t.Fatal("missing disabled tooltip")
 	}
 	first := stack.current

@@ -45,3 +45,14 @@ func (p paneToolbarPainter) PaintSeparator(c widget.Canvas, b geometry.Rect) {
 	x := b.Min.X + b.Width()/2
 	c.DrawLine(geometry.Pt(x, b.Min.Y+7), geometry.Pt(x, b.Max.Y-7), p.theme.Colors.StrokeDefault, 1)
 }
+
+// Pane identities are visual; English labels remain available to accessibility.
+var computerIcon = icon.IconData{Name: "computer", ViewBox: 24, StrokeWidth: 1.6, Ops: []icon.PathOp{
+	icon.Move(3, 4), icon.Line(21, 4), icon.Line(21, 17), icon.Line(3, 17), icon.ClosePath(),
+	icon.Move(12, 17), icon.Line(12, 21), icon.Move(7, 21), icon.Line(17, 21),
+}}
+var serverIcon = icon.IconData{Name: "server", ViewBox: 24, StrokeWidth: 1.6, Ops: []icon.PathOp{
+	icon.Move(4, 3), icon.Line(20, 3), icon.Line(20, 21), icon.Line(4, 21), icon.ClosePath(),
+	icon.Move(4, 9), icon.Line(20, 9), icon.Move(4, 15), icon.Line(20, 15),
+	icon.Move(7, 6), icon.Line(9, 6), icon.Move(7, 12), icon.Line(9, 12), icon.Move(7, 18), icon.Line(9, 18),
+}}

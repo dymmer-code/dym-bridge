@@ -126,3 +126,12 @@ selection; rebuilding the same view preserves checked items and their count.
 Regression tests exercise multiple checks, unchecking, independent focus,
 Space, double-click navigation, and select-all/clear. macOS inspection confirmed
 visible checkboxes and a checked row with the corresponding footer count.
+
+## Visual pane identity and English UI (#431)
+
+All application-owned preview UI text must be English, including tooltips,
+status messages, errors, accessibility labels, counters and transfer placeholders.
+Pane headers use monitor/server vector icons beside their paths instead of
+text titles. English accessibility labels retain the pane identities. User file
+names and paths are displayed verbatim. Tests/vet and the CGo-free preview bundle
+pass; the rebuilt macOS window was inspected for icons and English labels.

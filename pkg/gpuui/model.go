@@ -120,7 +120,7 @@ func demoDirectory(dir string) ([]sftp.Item, error) {
 	}
 	names, ok := tree[dir]
 	if !ok {
-		return nil, fmt.Errorf("esta carpeta no existe en la demostración")
+		return nil, fmt.Errorf("This folder does not exist in the demo")
 	}
 	items := make([]sftp.Item, 0, len(names))
 	for _, name := range names {

@@ -66,7 +66,7 @@ func (w *paneToolbar) showHelp(ctx widget.Context, point geometry.Point) {
 		}
 		text := target.Label
 		if target.Disabled {
-			text += " · No disponible en esta vista previa"
+			text += " · Not available in this preview"
 		}
 		if w.tip != nil && w.tip.text == text {
 			return
