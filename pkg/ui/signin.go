@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"os"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -36,10 +37,50 @@ func (a *App) showWelcome() {
 	a.window.SetContent(container.NewCenter(container.NewVBox(logo, title, layout.NewSpacer(), container.NewGridWrap(bigSize, btn))))
 }
 
+// showNoResources is the answer after a good sign-in when nobody has given this account access to a site yet:
+// the sign-in worked, there is just nothing to open.
+func (a *App) showNoResources() {
+	icon := widget.NewIcon(theme.ConfirmIcon())
+	title := widget.NewLabelWithStyle("Signed in", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	note := widget.NewLabelWithStyle("No site is shared with you yet.", fyne.TextAlignCenter, fyne.TextStyle{})
+	again := widget.NewButtonWithIcon("Check again", theme.ViewRefreshIcon(), a.signIn)
+	reset := widget.NewButtonWithIcon("Start over", theme.DeleteIcon(), a.startOver)
+
+	a.window.Resize(fyne.NewSize(440, 360))
+	a.window.SetContent(container.NewCenter(container.NewVBox(icon, title, note, layout.NewSpacer(),
+		container.NewGridWrap(bigSize, again), container.NewGridWrap(bigSize, reset))))
+}
+
+// startOver forgets this computer's key and resources, after confirming: the way out when the master password is
+// lost. Dymmer keeps the old device until it is removed from the keys page.
+func (a *App) startOver() {
+	dialog.ShowConfirm("Start over", "Forget this computer's key and sign in again?", func(ok bool) {
+		if !ok {
+			return
+		}
+		path, err := provision.DefaultPath()
+		if err == nil {
+			err = os.Remove(path)
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			dialog.ShowError(err, a.window)
+			return
+		}
+		a.tunnelMgr.Disconnect()
+		a.config = nil
+		a.profiles = nil
+		a.showWelcome()
+	}, a.window)
+}
+
 // showResources lets the user pick one of the resources Dymmer gave this device (one profile each).
 func (a *App) showResources() {
-	if a.profiles == nil || len(a.profiles.Resources) == 0 {
+	if a.profiles == nil {
 		a.showWelcome()
+		return
+	}
+	if len(a.profiles.Resources) == 0 {
+		a.showNoResources()
 		return
 	}
 	items := []fyne.CanvasObject{}
@@ -85,21 +126,35 @@ func (a *App) signIn() {
 		items = append(items, widget.NewFormItem("Repeat it", confirm))
 	}
 
-	form := dialog.NewForm(title, "Continue", "Cancel", items, func(ok bool) {
-		if !ok {
-			return
-		}
+	var d dialog.Dialog
+	submit := func() {
 		switch {
 		case master.Text == "":
 			dialog.ShowError(errors.New("the master password cannot be empty"), a.window)
 		case first && master.Text != confirm.Text:
 			dialog.ShowError(errors.New("the two passwords are not the same"), a.window)
 		default:
+			d.Hide()
 			a.runSignIn(a.serverURL(), master.Text)
 		}
-	}, a.window)
-	form.Resize(fyne.NewSize(420, 200))
-	form.Show()
+	}
+	master.OnSubmitted = func(string) { submit() }
+
+	buttons := container.NewHBox(
+		widget.NewButton("Cancel", func() { d.Hide() }),
+		widget.NewButtonWithIcon("Continue", theme.ConfirmIcon(), submit),
+	)
+	if !first {
+		forgot := widget.NewButton("Forgot it? Start over", func() {
+			d.Hide()
+			a.startOver()
+		})
+		forgot.Importance = widget.LowImportance
+		buttons = container.NewHBox(forgot, layout.NewSpacer(), buttons)
+	}
+	d = dialog.NewCustomWithoutButtons(title, container.NewVBox(widget.NewForm(items...), buttons), a.window)
+	d.Resize(fyne.NewSize(440, 200))
+	d.Show()
 	a.window.Canvas().Focus(master)
 }
 

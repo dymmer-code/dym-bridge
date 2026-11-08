@@ -15,6 +15,7 @@ import (
 func (a *App) buildMenu() {
 	file := fyne.NewMenu("Dym Bridge",
 		fyne.NewMenuItem("Sign in with Dymmer…", a.signIn),
+		fyne.NewMenuItem("Start over…", a.startOver),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Settings…", a.showSettings),
 	)

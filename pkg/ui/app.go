@@ -55,7 +55,7 @@ func NewApp(cfg *config.Config, profiles *provision.Profiles) *App {
 	switch {
 	case cfg != nil:
 		dymApp.setupConnectedUI()
-	case profiles != nil && len(profiles.Resources) > 0:
+	case profiles != nil:
 		dymApp.showResources()
 	default:
 		dymApp.showWelcome()
