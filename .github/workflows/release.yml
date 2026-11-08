@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+  # A manual run builds, signs and notarizes everything but publishes nothing: to check the secrets without a tag.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -39,6 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) ;; *) VERSION="v0.0.0-test" ;; esac
           NUM="${VERSION#v}"
           NAME="dym-bridge_${NUM}_${GOOS_NAME}_${GOARCH_NAME}"
           LDFLAGS="-s -w -X github.com/dymmer-code/dym-bridge/pkg/version.Version=${VERSION} -X github.com/dymmer-code/dym-bridge/pkg/version.GitCommit=$(git rev-parse --short HEAD) -X github.com/dymmer-code/dym-bridge/pkg/version.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -77,7 +80,9 @@ jobs:
             echo "::warning::No Apple signing secrets: the macOS archive is NOT signed or notarized"
             exit 0
           fi
-          NAME="dym-bridge_${GITHUB_REF_NAME#v}_darwin_${GOARCH_NAME}"
+          VERSION="${GITHUB_REF_NAME}"
+          case "$VERSION" in v*) ;; *) VERSION="v0.0.0-test" ;; esac
+          NAME="dym-bridge_${VERSION#v}_darwin_${GOARCH_NAME}"
           KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
           PW="$(uuidgen)"
           echo "$APPLE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
@@ -114,6 +119,7 @@ jobs:
 
   publish:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
