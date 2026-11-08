@@ -7,6 +7,8 @@ import (
 	"os"
 	"runtime"
 	"time"
+
+	"github.com/dymmer-code/dym-bridge/pkg/version"
 )
 
 // Receiver delivers the address the browser opened when the user approved.
@@ -95,9 +97,10 @@ func Login(ctx context.Context, o LoginOptions) (*Profiles, error) {
 		return nil, err
 	}
 	file, err := client.Provision(ctx, token, DeviceInfo{
-		PublicKey:  profiles.Key.PublicKey,
-		DeviceName: name,
-		System:     runtime.GOOS + " " + runtime.GOARCH,
+		PublicKey:     profiles.Key.PublicKey,
+		DeviceName:    name,
+		System:        runtime.GOOS + " " + runtime.GOARCH,
+		ClientVersion: version.Version,
 	})
 	token = "" // spent; nothing keeps it
 	if err != nil {

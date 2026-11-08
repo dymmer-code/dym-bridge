@@ -59,6 +59,8 @@ type DeviceInfo struct {
 	PublicKey  string `json:"public_key"`
 	DeviceName string `json:"device_name"`
 	System     string `json:"system"`
+	// ClientVersion is the version of the application, so the owner can see which devices are old.
+	ClientVersion string `json:"client_version,omitempty"`
 }
 
 // Provision makes the single provisioning call with the token and returns the file. The token is spent whatever the
