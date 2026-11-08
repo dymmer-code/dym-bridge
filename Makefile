@@ -115,3 +115,18 @@ windows:
 
 clean:
 	rm -rf bin/ cmd/generate-icons
+
+# Isolated GoGPU experiment: no Fyne imports and no CGo.
+.PHONY: preview-build preview preview-test preview-bundle
+preview-build:
+	CGO_ENABLED=0 go build -o bin/dym-bridge-gpu ./cmd/dym-bridge-gpu
+
+preview: preview-build
+	./bin/dym-bridge-gpu
+
+preview-test:
+	CGO_ENABLED=0 go test ./pkg/gpuui
+	CGO_ENABLED=0 go vet ./pkg/gpuui ./cmd/dym-bridge-gpu
+
+preview-bundle: preview-build
+	sh packaging/macos/preview.sh

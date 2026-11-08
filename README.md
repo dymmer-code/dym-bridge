@@ -94,3 +94,9 @@ make windows
 * `pkg/ui/`: Interfaz gráfica con Fyne (explorador, breadcrumb, drag & drop, tabla de archivos, systray y temas).
 * `pkg/lock/`: Mutex/lock para impedir instancias duplicadas concurrentes.
 * `pkg/version/`: Información de versión y build.
+
+## Prototipo GoGPU UI
+
+La rama experimental incluye una interfaz independiente, sin CGo ni WebView:
+`make preview`. Es una prueba de UX de solo lectura con exploración local real
+y servidor de demostración. Ver [alcance y ejecución](docs/gogpu-preview.md).
