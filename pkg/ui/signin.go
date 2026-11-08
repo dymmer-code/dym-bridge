@@ -44,11 +44,14 @@ func (a *App) showNoResources() {
 	icon := widget.NewIcon(theme.ConfirmIcon())
 	title := widget.NewLabelWithStyle("Signed in", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	note := widget.NewLabelWithStyle("No site is shared with you yet.", fyne.TextAlignCenter, fyne.TextStyle{})
+	help := widget.NewLabelWithStyle("Ask an administrator to give you access, then press Check again.",
+		fyne.TextAlignCenter, fyne.TextStyle{})
+	help.Wrapping = fyne.TextWrapWord
 	again := widget.NewButtonWithIcon("Check again", theme.ViewRefreshIcon(), a.signIn)
 	reset := widget.NewButtonWithIcon("Start over", theme.DeleteIcon(), a.startOver)
 
 	a.window.Resize(fyne.NewSize(440, 360))
-	a.window.SetContent(container.NewCenter(container.NewVBox(icon, title, note, layout.NewSpacer(),
+	a.window.SetContent(container.NewCenter(container.NewVBox(icon, title, note, help, layout.NewSpacer(),
 		container.NewGridWrap(bigSize, again), container.NewGridWrap(bigSize, reset))))
 }
 
