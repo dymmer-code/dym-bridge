@@ -26,6 +26,7 @@ type browser struct {
 	theme         *fluent.Theme
 	local, remote *Model
 	dark          bool
+	transfersOpen bool
 	status        state.Signal[string]
 	selection     state.Signal[string]
 }
@@ -50,15 +51,15 @@ func (b *browser) setTheme() {
 		b.theme = fluent.NewTheme(opts)
 	}
 }
-func (b *browser) text(s string, size float32) *p.TextWidget {
-	return p.Text(s).FontSize(size).Color(b.theme.Colors.OnSurface).MaxLines(1).Ellipsis()
+func (b *browser) text(s string, size float32) *cellText {
+	return &cellText{TextWidget: p.Text(s).FontSize(size).Color(b.theme.Colors.OnSurface).MaxLines(1), size: size, color: b.theme.Colors.OnSurface}
 }
 func (b *browser) action(label string, primary bool, fn func()) *button.Widget {
-	variant := button.Outlined
+	variant := button.TextOnly
 	if primary {
 		variant = button.Filled
 	}
-	return button.New(button.TextOpt(label), button.VariantOpt(variant), button.OnClick(fn), button.PainterOpt(fluent.ButtonPainter{Theme: b.theme}))
+	return button.New(button.TextOpt(label), button.SizeOpt(button.Small), button.VariantOpt(variant), button.OnClick(fn), button.PainterOpt(fluent.ButtonPainter{Theme: b.theme}))
 }
 func (b *browser) navigate(m *Model, dir string) {
 	if err := m.Navigate(dir); err != nil {
@@ -69,31 +70,30 @@ func (b *browser) navigate(m *Model, dir string) {
 	b.status.Set("Carpeta abierta · " + dir)
 	b.rebuild()
 }
+func (b *browser) rule() widget.Widget {
+	return p.Box().Height(1).Background(b.theme.Colors.StrokeDefault)
+}
 func (b *browser) rebuild() {
 	cs := b.theme.Colors
-	side := []widget.Widget{b.text("DYM BRIDGE", 19).Bold(), b.text("Tu espacio de trabajo", 12), p.Box().Height(24), b.text("EXPLORAR", 11).Bold(), b.action("Archivos", true, func() { b.navigate(b.remote, "/wp-content") }), p.Box().Height(16), b.text("ACCESOS LOCALES", 11).Bold()}
-	dirs := local.CommonDirectories()
-	for _, name := range []string{"Home", "Downloads", "Desktop", "Documents"} {
-		if dir, ok := dirs[name]; ok {
-			side = append(side, b.action(name, false, func() { b.navigate(b.local, dir) }))
-		}
+	header := p.HBox(
+		b.text("Dym Bridge", 15).Bold(),
+		p.Expanded(b.text("Sitio de ejemplo · demostración", 12)),
+		b.action("10.000 archivos", false, func() { b.remote.Stress(); b.status.Set("Prueba sintética · 10.000 archivos"); b.rebuild() }),
+		b.action("Tema", false, func() { b.dark = !b.dark; b.setTheme(); b.ui.SetTheme(b.theme.AsTheme()); b.rebuild() }),
+	).PaddingXY(12, 4).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
+	panels := p.HBox(p.Expanded(b.pane(b.local, "Este equipo", "Solo lectura")), p.Box().Width(1).Background(cs.StrokeDefault), p.Expanded(b.pane(b.remote, "Sitio de ejemplo", "Servidor de demostración")))
+	label := "+ Transferencias"
+	if b.transfersOpen {
+		label = "- Transferencias"
 	}
-	side = append(side, p.Expanded(p.Box()))
-	side = append(side, b.text("LABORATORIO", 11).Bold())
-	side = append(side, b.action("10.000 archivos", false, func() {
-		b.remote.Stress()
-		b.status.Set("Prueba sintética · 10.000 archivos virtualizados")
-		b.rebuild()
-	}))
-	side = append(side, b.action("Cambiar tema", false, func() { b.dark = !b.dark; b.setTheme(); b.ui.SetTheme(b.theme.AsTheme()); b.rebuild() }))
-	sidebar := p.VBox(side...).Width(194).Padding(20).Gap(12).Background(cs.SurfaceSecondary)
-	header := p.HBox(p.Expanded(p.VBox(b.text("Archivos", 28).Bold(), b.text("Del equipo al servidor, con todo a la vista", 14)).Gap(5)), p.Box(b.text("SERVIDOR DE DEMOSTRACIÓN", 11).Bold()).PaddingXY(14, 10).Rounded(8).Background(cs.AccentLight)).Gap(20)
-	panels := p.HBox(p.Expanded(b.pane(b.local, "Este equipo", "Navegación local · solo lectura")), p.Expanded(b.pane(b.remote, "Sitio de ejemplo", "Datos ficticios · sin conexión SSH"))).Gap(18)
-	details := p.VBox(b.text("DETALLES", 11).Bold(), p.TextFn(func() string { return b.selection.Get() }).FontSize(13).Color(cs.OnSurface).MaxLines(1).Ellipsis()).Padding(16).Gap(8).Rounded(10).Background(cs.SurfaceSecondary)
-	transfers := p.HBox(p.Expanded(p.VBox(b.text("Transferencias", 16).Bold(), b.text("Esta prueba evalúa la interfaz. Subidas y descargas aún no están conectadas.", 12)).Gap(5)), button.New(button.TextOpt("Sin transferencias"), button.Disabled(true), button.PainterOpt(fluent.ButtonPainter{Theme: b.theme}))).Padding(16).Rounded(10).Background(cs.SurfaceSecondary)
-	footer := p.TextFn(func() string { return b.status.Get() }).FontSize(12).Color(cs.OnSurfaceSecond).MaxLines(1).Ellipsis()
-	content := p.VBox(header, p.Expanded(panels), details, transfers, footer).Padding(24).Gap(18).Background(cs.Surface)
-	b.ui.SetRoot(p.HBox(sidebar, p.Expanded(content)))
+	transferBar := p.HBox(b.action(label, false, func() { b.transfersOpen = !b.transfersOpen; b.rebuild() }), p.Expanded(b.text("0 en cola", 12)), b.text("Vista previa · sin conexiones ni escrituras", 11)).PaddingXY(8, 0).Gap(12).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
+	children := []widget.Widget{header, b.rule(), p.Expanded(panels), b.rule(), transferBar}
+	if b.transfersOpen {
+		children = append(children, b.rule(), p.VBox(b.text("No hay transferencias", 13), b.text("Subidas y descargas aún no están conectadas en este prototipo.", 12)).PaddingXY(16, 12).Gap(4).Background(cs.Surface))
+	}
+	footer := p.TextFn(func() string { return b.status.Get() }).FontSize(11).Color(cs.OnSurfaceSecond).MaxLines(1).Ellipsis()
+	children = append(children, b.rule(), p.Box(footer).PaddingXY(12, 5).Background(cs.SurfaceSecondary))
+	b.ui.SetRoot(p.VBox(children...).Background(cs.Surface))
 	b.gpu.RequestRedraw()
 }
 func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
@@ -101,52 +101,79 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 	var list *listview.Widget
 	count := state.NewSignal(len(m.Visible))
 	summary := state.NewSignal(fmt.Sprintf("%d elementos", len(m.Visible)))
-	list = listview.New(listview.ItemCountSignal(count), listview.FixedItemHeight(44), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(true), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
+	list = listview.New(listview.ItemCountSignal(count), listview.FixedItemHeight(28), listview.SelectionModeOpt(listview.SelectionSingle), listview.A11yLabel(title), listview.Divider(false), listview.BuildItem(func(ctx listview.ItemContext) widget.Widget {
 		if ctx.Index >= len(m.Visible) {
 			return p.Box()
 		}
 		item := m.Visible[ctx.Index]
-		kind := "ARCHIVO"
 		size := sftp.FormatFileSize(item.Size)
 		if item.IsDir {
-			kind = "CARPETA"
 			size = "—"
 		}
-		name := b.text(item.Name, 14)
+		name := b.text(item.Name, 13)
+		marker := "·"
+		markerColor := cs.OnSurfaceSecond
 		if item.IsDir {
-			name.Bold()
+			marker = "/"
+			markerColor = cs.Accent
 		}
-		row := p.HBox(p.Expanded(name), p.Box(b.text(size, 12)).Width(64), p.Box(b.text(kind, 10)).Width(64)).PaddingXY(12, 10).Gap(8)
+		row := p.HBox(p.Box(p.Text(marker).FontSize(13).Color(markerColor)).Width(12), p.Expanded(name), p.Box(b.text(size, 11)).Width(66), p.Box(b.text(item.ModTime.Format("02/01/06 15:04"), 11)).Width(100)).PaddingXY(10, 5).Gap(8)
+		if ctx.Index%2 == 1 {
+			row.Background(cs.SurfaceSecondary)
+		}
 		if ctx.Selected {
 			row.Background(cs.AccentLight)
 		}
+
 		return row
 	}), listview.OnSelectionChange(func(i int) {
 		m.Select(i)
 		if item := m.Selected(); item != nil {
-			b.selection.Set(item.Name + " · " + sftp.FormatFileSize(item.Size) + " · " + item.Path)
+			b.status.Set(item.Name + " · " + sftp.FormatFileSize(item.Size) + " · " + item.Path)
 		}
 	}))
-	query := textfield.New(textfield.Placeholder("Buscar en esta carpeta…"), textfield.InitialValue(m.Query), textfield.A11yLabel("Buscar en "+title), textfield.PainterOpt(fluent.TextFieldPainter{Theme: b.theme}), textfield.OnChange(func(q string) {
+	query := textfield.New(textfield.Placeholder("Filtrar archivos…"), textfield.InitialValue(m.Query), textfield.A11yLabel("Buscar en "+title), textfield.PainterOpt(fluent.TextFieldPainter{Theme: b.theme}), textfield.OnChange(func(q string) {
 		m.Filter(q)
 		count.Set(len(m.Visible))
 		summary.Set(fmt.Sprintf("%d de %d elementos", len(m.Visible), len(m.Items)))
 		list.InvalidateData()
 		b.selection.Set("Selecciona un archivo para ver sus detalles")
 	}))
-	up := b.action("Subir", false, func() {
+	up := b.action("↑", false, func() {
 		parent := filepath.Dir(m.Path)
 		if m.Demo {
 			parent = path.Dir(m.Path)
 		}
 		b.navigate(m, parent)
 	})
-	open := b.action("Abrir carpeta", false, func() {
+	open := b.action("Abrir", false, func() {
 		if item := m.Selected(); item != nil && item.IsDir {
 			b.navigate(m, item.Path)
 		} else {
 			b.status.Set("Selecciona una carpeta y pulsa Abrir carpeta")
 		}
 	})
-	return p.VBox(p.VBox(b.text(title, 18).Bold(), b.text(subtitle, 12)).Gap(4), p.HBox(up, b.action("Actualizar", false, func() { b.navigate(m, m.Path) }), open).Gap(8), b.text(m.Path, 12), query, p.HBox(p.Expanded(b.text("NOMBRE", 10).Bold()), p.Box(b.text("TAMAÑO", 10)).Width(64), p.Box(b.text("TIPO", 10)).Width(64)).PaddingXY(12, 0).Gap(8), p.Expanded(list), p.TextFn(func() string { return summary.Get() }).FontSize(12).Color(cs.OnSurfaceSecond)).Padding(16).Gap(12).Rounded(12).BorderStyle(1, cs.StrokeDefault).Background(cs.SurfaceSecondary)
+	heading := p.HBox(p.Expanded(b.text(title, 13).Bold()), b.text(subtitle, 11)).PaddingXY(10, 6).Gap(8).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
+	pathbar := p.HBox(up, p.Expanded(b.text(m.Path, 12)), b.action("Actualizar", false, func() { b.navigate(m, m.Path) }), open).PaddingXY(4, 0).Gap(4).CrossAlign(p.CrossAxisCenter).Background(cs.SurfaceSecondary)
+	shortcuts := []widget.Widget{}
+	if m.Demo {
+		for _, name := range []string{"wp-content", "themes", "plugins", "uploads"} {
+			dir := "/wp-content"
+			if name != "wp-content" {
+				dir = path.Join(dir, name)
+			}
+			shortcuts = append(shortcuts, b.action(name, false, func() { b.navigate(m, dir) }))
+		}
+	} else {
+		dirs := local.CommonDirectories()
+		for _, entry := range []struct{ key, label string }{{"Home", "Inicio"}, {"Downloads", "Descargas"}, {"Documents", "Documentos"}} {
+			if dir, ok := dirs[entry.key]; ok {
+				shortcuts = append(shortcuts, b.action(entry.label, false, func() { b.navigate(m, dir) }))
+			}
+		}
+	}
+	searchbar := p.HBox(p.Expanded(p.HBox(shortcuts...).Gap(2)), p.Box(query).Width(180).Height(32)).PaddingXY(6, 3).Gap(6).CrossAlign(p.CrossAxisCenter)
+	columns := p.HBox(p.Box().Width(12), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
+	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
+	return p.VBox(heading, b.rule(), pathbar, searchbar, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
 }

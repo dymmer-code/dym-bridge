@@ -54,3 +54,13 @@ handler and apply results on the UI thread, with stale-request protection.
 Do not migrate the SSH/security/provisioning core to justify a UI change. Once
 the visual direction is accepted, introduce an application service shared by
 both frontends and connect progress, errors and cancellation through it.
+
+## Compact revision (#424)
+
+The dashboard composition was replaced after user review: no sidebar, cards,
+large heading or permanent details panel. Both file panes fill the window;
+28px alternating rows show name, size and modification time. Per-pane compact
+bars contain paths, parent/open/refresh actions, shortcuts and filtering.
+Selection details appear in the status bar; transfers expand only on request.
+A constrained text renderer clips/ellipsizes long names so columns do not overlap.
+The existing read-only/demo scope and integration limitations still apply.
