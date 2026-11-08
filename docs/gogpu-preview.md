@@ -105,3 +105,12 @@ Write actions remain disabled. The file table gains the space previously used
 by the extra rows. No new dependencies or behavioral changes to navigation.
 Verified with make preview-test, preview-bundle (CGo disabled), and inspection
 of the rebuilt macOS window.
+
+## Toolbar help (#429)
+
+Every pane toolbar button shows its label in a floating tooltip on hover.
+Disabled actions add "No disponible en esta vista previa". The overlay uses
+Fluent colors and window-space positioning; it disappears on leave, press,
+keyboard input or unmount. It does not enable disabled commands or change layout.
+The wrapper records actual painted item bounds rather than duplicating layout.
+Tests cover disabled help, stable hover, leaving the button and unmount cleanup.

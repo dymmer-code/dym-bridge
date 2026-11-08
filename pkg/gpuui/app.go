@@ -163,7 +163,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		item.Enabled = false
 		return item
 	}
-	actions := toolbar.New(toolbar.Height(32), toolbar.ButtonSize(28), toolbar.Gap(3), toolbar.PainterOpt(paneToolbarPainter{theme: b.theme}), toolbar.Items(
+	actions := newPaneToolbar(b.theme,
 		toolbar.IconButton("Carpeta superior", upIcon, parent),
 		toolbar.IconButton("Actualizar", icon.Refresh, func() { b.navigate(m, m.Path) }),
 		toolbar.Separator(),
@@ -177,7 +177,7 @@ func (b *browser) pane(m *Model, title, subtitle string) widget.Widget {
 		disabled("Nueva carpeta", newFolderIcon), disabled("Eliminar", icon.Delete),
 		toolbar.Separator(), disabled(transferLabel, transferIcon),
 		toolbar.Spacer(), toolbar.Custom(b.text(subtitle, 11)),
-	))
+	)
 	columns := p.HBox(p.Box().Width(16), p.Expanded(b.text("Nombre", 11)), p.Box(b.text("Tamaño", 11)).Width(66), p.Box(b.text("Modificado", 11)).Width(100)).PaddingXY(10, 5).Gap(8).Background(cs.SurfaceSecondary)
 	countbar := p.Box(p.TextFn(func() string { return summary.Get() }).FontSize(11).Color(cs.OnSurfaceSecond)).PaddingXY(10, 5).Background(cs.SurfaceSecondary)
 	return p.VBox(heading, actions, b.rule(), columns, b.rule(), p.Expanded(list), b.rule(), countbar).Background(cs.Surface)
