@@ -2,6 +2,7 @@ package sites
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -19,7 +20,11 @@ type Relay struct {
 }
 
 func NewRelay(raw string, dial Dialer) (*Relay, error) {
-	if _, err := Validate(Link{Name: "site", URL: raw}); err != nil {
+	return NewRelayForLink(Link{Name: "site", URL: raw}, dial)
+}
+func NewRelayForLink(link Link, dial Dialer) (*Relay, error) {
+	raw := link.URL
+	if _, err := Validate(link); err != nil {
 		return nil, err
 	}
 	if dial == nil {
@@ -32,12 +37,18 @@ func NewRelay(raw string, dial Dialer) (*Relay, error) {
 	}
 	base := "http://" + listener.Addr().String()
 	transport := &http.Transport{DialContext: dial, Proxy: nil, TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 30 * time.Second, IdleConnTimeout: 30 * time.Second}
+	httpHost := target.Host
+	if link.HostHeader != "" {
+		httpHost = link.HostHeader
+		hostURL, _ := url.Parse("https://" + httpHost)
+		transport.TLSClientConfig = &tls.Config{ServerName: hostURL.Hostname(), MinVersion: tls.VersionTLS12}
+	}
 	proxy := &httputil.ReverseProxy{Transport: transport, Rewrite: func(pr *httputil.ProxyRequest) {
 		pr.Out.URL.Scheme = target.Scheme
 		pr.Out.URL.Host = target.Host
-		pr.Out.Host = target.Host
+		pr.Out.Host = httpHost
 		pr.SetXForwarded()
-		pr.Out.Header.Set("X-Forwarded-Host", target.Host)
+		pr.Out.Header.Set("X-Forwarded-Host", httpHost)
 		pr.Out.Header.Set("X-Forwarded-Proto", target.Scheme)
 	}, ModifyResponse: func(resp *http.Response) error {
 		if location := resp.Header.Get("Location"); location != "" {
@@ -46,7 +57,7 @@ func NewRelay(raw string, dial Dialer) (*Relay, error) {
 				return err
 			}
 			if u.Host != "" {
-				if !strings.EqualFold(u.Host, target.Host) {
+				if !strings.EqualFold(u.Host, target.Host) && !strings.EqualFold(u.Host, httpHost) {
 					return fmt.Errorf("Redirect to another site is not configured for this tunnel")
 				}
 				u.Scheme = "http"

@@ -36,6 +36,9 @@ func (s *session) close() {
 	}
 }
 func (s *session) connect(cfg *config.Config) error {
+	if err := config.ValidateTunnels(cfg.Tunnels); err != nil {
+		return err
+	}
 	s.close()
 	s.manager = tunnel.NewManager(cfg)
 	if err := s.manager.Connect(); err != nil {
@@ -48,6 +51,12 @@ func (s *session) connect(cfg *config.Config) error {
 		return err
 	}
 	s.files = files
+	for _, link := range interfaceLinks(cfg) {
+		if _, err := s.siteLinkURL(link); err != nil {
+			s.close()
+			return fmt.Errorf("Prepare interface %s: %w", link.Name, err)
+		}
+	}
 	return nil
 }
 
@@ -120,21 +129,25 @@ func (m *Model) CheckedItems() []sftp.Item {
 }
 
 func (s *session) siteURL(raw string) (string, error) {
+	return s.siteLinkURL(sites.Link{Name: "site", URL: raw})
+}
+func (s *session) siteLinkURL(link sites.Link) (string, error) {
+	raw := link.URL
 	if s.manager == nil || s.manager.SSHClient() == nil {
 		return "", fmt.Errorf("Connect before opening a site")
 	}
-	if _, err := sites.Validate(sites.Link{Name: "site", URL: raw}); err != nil {
+	if _, err := sites.Validate(link); err != nil {
 		return "", err
 	}
 	u, _ := url.Parse(raw)
-	key := u.Scheme + "://" + u.Host
+	key := u.Scheme + "://" + u.Host + "|" + link.HostHeader
 	if s.relays == nil {
 		s.relays = map[string]*sites.Relay{}
 	}
 	relay := s.relays[key]
 	if relay == nil {
 		var err error
-		relay, err = sites.NewRelay(raw, s.manager.SSHClient().DialContext)
+		relay, err = sites.NewRelayForLink(link, s.manager.SSHClient().DialContext)
 		if err != nil {
 			return "", err
 		}

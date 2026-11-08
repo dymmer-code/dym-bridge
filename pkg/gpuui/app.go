@@ -37,6 +37,7 @@ type browser struct {
 	cfg             *config.Config
 	configPath      string
 	siteLinks       []sites.Link
+	manualSites     []sites.Link
 	siteLoadError   error
 	connected, busy bool
 	updates         chan func()

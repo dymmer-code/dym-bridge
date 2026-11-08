@@ -144,3 +144,30 @@ func TestCrossOriginRedirectDoesNotEscapeTunnel(t *testing.T) {
 		t.Fatalf("redirect escaped: %v", resp)
 	}
 }
+
+func TestVirtualHostRedirect(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Host != "wordpress.example" {
+			t.Errorf("wrong virtual host: %s", r.Host)
+		}
+		w.Header().Set("Location", "https://wordpress.example/wp-login.php?next=admin")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer upstream.Close()
+	relay, err := NewRelayForLink(Link{Name: "WordPress", URL: upstream.URL + "/wp-admin/", HostHeader: "wordpress.example"}, func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, addr)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer relay.Close()
+	client := http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	response, err := client.Get(relay.URL("/wp-admin/"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.Header.Get("Location") != relay.URL("/wp-login.php?next=admin") {
+		t.Fatal(response.Header.Get("Location"))
+	}
+}

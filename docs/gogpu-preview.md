@@ -28,13 +28,44 @@ control the transfer actions and enabled states. Transfers support files and
 recursive directories through the existing SFTP client, including its overwrite
 behavior. A compact bottom strip displays real per-file byte progress and total
 selected-item completion, with completion/error feedback and refreshed listings.
-**Sites → Configure sites…** edits name/URL pairs, stored per SSH user/host/port
-in `sites.json` under the platform's user configuration directory (`dym-bridge`).
-Add, edit or remove rows and Save; Back discards the draft. HTTP(S) URLs are
-resolved from the SSH server, including its loopback and internal hosts. Clicking
-a site opens a local loopback proxy that uses SSH forwarding exclusively; it
-works with SFTP-only profiles too, when the SSH server permits TCP forwarding.
-Relays are reused per origin and closed on disconnect or connection change.
+**Sites** is populated from the selected resource's provisioned `tunnels`.
+Named HTTP(S) interfaces have their loopback listeners created during connection;
+clicking one opens its generated local URL. Plain host/port tunnel declarations
+remain compatible but are not shown as websites. Each interface may specify a
+virtual HTTP host; HTTPS uses that hostname for certificate verification/SNI
+while the SSH connection still targets the authorized loopback host and port.
+
+**Sites → Advanced → Configure manual links…** manages optional local overrides
+as a separate list: they never replace or overwrite provisioned interfaces.
+Manual entries are stored per SSH user/host/port in the user's `dym-bridge/sites.json`.
+Relays are reused per upstream origin and HTTP host, and close on disconnect.
+
+Provisioning format version 1 is extended additively. Example entry in a resource:
+
+```json
+{
+  "tunnels": [
+    {"host":"127.0.0.1", "port":8080, "id":"wordpress",
+     "name":"WordPress Admin", "scheme":"http", "path":"/wp-admin/",
+     "host_header":"site.example.com"},
+    {"host":"127.0.0.1", "port":8081, "id":"phpmyadmin",
+     "name":"phpMyAdmin", "scheme":"http", "path":"/"}
+  ]
+}
+```
+
+The host's authorized catalogue is the source of these entries; Dymmer validates
+and delivers only the delegated system account's catalogue. IDs must be unique
+per account. Interface fields are all required except `host_header`; host/port-only
+legacy entries remain valid. No additional manifest URL or unauthenticated download
+is used. Existing saved resources need provisioning again through the original
+client to receive changed metadata: the single-use provisioning token does not
+provide a refresh session. The preview reads those saved profiles on selection.
+The server must allow the declared destinations in its SSH forwarding policy;
+announcing an interface does not grant forwarding access. In particular, the
+current Birch SFTP policy disables forwarding and announces no interfaces; this
+client/server contract change does not modify or deploy that infrastructure.
+
 HTTPS upstream certificates are verified normally. Same-origin redirects are
 rewritten locally; cross-origin redirects fail rather than bypassing SSH.
 Absolute URLs embedded in page HTML/JavaScript are not rewritten, and applications

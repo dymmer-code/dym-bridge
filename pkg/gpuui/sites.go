@@ -3,6 +3,7 @@ package gpuui
 import (
 	"fmt"
 
+	"github.com/dymmer-code/dym-bridge/pkg/config"
 	"github.com/dymmer-code/dym-bridge/pkg/provision"
 	"github.com/dymmer-code/dym-bridge/pkg/sites"
 	"github.com/gogpu/ui/core/menu"
@@ -20,10 +21,11 @@ func (b *browser) sitesKey() string {
 	return fmt.Sprintf("%s@%s:%d", b.cfg.SSH.User, b.cfg.SSH.Host, b.cfg.SSH.Port)
 }
 func (b *browser) loadSites() {
-	b.siteLinks = nil
+	b.siteLinks = interfaceLinks(b.cfg)
+	b.manualSites = nil
 	filename, err := sites.DefaultPath()
 	if err == nil {
-		b.siteLinks, _, err = sites.Load(filename, b.sitesKey())
+		b.manualSites, _, err = sites.Load(filename, b.sitesKey())
 	}
 	b.siteLoadError = err
 }
@@ -37,14 +39,27 @@ func (b *browser) sitesMenu() widget.Widget {
 		}
 	}
 	if len(items) == 0 {
-		items = append(items, menu.ItemDisabled("No sites configured", ""))
+		items = append(items, menu.ItemDisabled("No interfaces provided", ""))
 	}
 	items = append(items, menu.Sep())
-	if b.busy {
-		items = append(items, menu.ItemDisabled("Configure sites…", ""))
-	} else {
-		items = append(items, menu.Item("Configure sites…", "", b.configureSites))
+	var advanced []menu.MenuItem
+	for _, link := range b.manualSites {
+		if !b.connected || b.busy {
+			advanced = append(advanced, menu.ItemDisabled(link.Name, ""))
+		} else {
+			advanced = append(advanced, menu.Item(link.Name, "", func() { b.openSite(link) }))
+		}
 	}
+	if len(advanced) > 0 {
+		advanced = append(advanced, menu.Sep())
+	}
+	if b.busy {
+		advanced = append(advanced, menu.ItemDisabled("Configure manual links…", ""))
+	} else {
+		advanced = append(advanced, menu.Item("Configure manual links…", "", b.configureSites))
+	}
+	items = append(items, menu.SubMenu("Advanced", advanced...))
+
 	cs := b.theme.Colors
 	painter := sitesMenuPainter{colors: menu.MenuColorScheme{BarBackground: cs.SurfaceSecondary, BarText: cs.OnSurface, BarHover: cs.AccentLight, BarActiveText: cs.Accent, MenuBackground: cs.Surface, MenuBorder: cs.StrokeDefault, ItemText: cs.OnSurface, ItemHover: cs.AccentLight, ItemDisabledText: cs.OnSurfaceSecond, ShortcutText: cs.OnSurfaceSecond, SeparatorColor: cs.StrokeDefault, SubMenuArrow: cs.OnSurface}}
 	return menu.NewBar([]menu.TopMenu{menu.BarMenu("Sites", items...)}, menu.PainterOpt(painter))
@@ -67,7 +82,7 @@ func (b *browser) openSite(link sites.Link) {
 	var localURL string
 	b.runOperation("Opening "+link.Name+"…", func() error {
 		var err error
-		localURL, err = b.session.siteURL(link.URL)
+		localURL, err = b.session.siteLinkURL(link)
 		return err
 	}, func(err error) {
 		if err == nil {
@@ -93,7 +108,7 @@ func (b *browser) configureSites() {
 		b.showForm("Sites", b.text("Could not read saved sites. The file has not been changed.", 12), b.text(b.siteLoadError.Error(), 12))
 		return
 	}
-	b.editSites(append([]sites.Link(nil), b.siteLinks...))
+	b.editSites(append([]sites.Link(nil), b.manualSites...))
 }
 func (b *browser) editSites(draft []sites.Link) {
 	type fields struct{ name, url *textfield.Widget }
@@ -118,7 +133,7 @@ func (b *browser) editSites(draft []sites.Link) {
 		content = append(content, b.text("No sites yet. Add a name and URL to get started.", 12))
 	}
 	height := float32(min(310, max(28, len(draft)*116)))
-	b.showForm("Configure sites", b.text(b.sitesKey(), 12), p.Box(scrollview.New(p.VBox(content...).Gap(16))).Height(height),
+	b.showForm("Manual site links", b.text(b.sitesKey(), 12), p.Box(scrollview.New(p.VBox(content...).Gap(16))).Height(height),
 		p.TextFn(func() string { return message.Get() }).FontSize(12).MaxLines(2),
 		p.HBox(b.action("Add site", false, func() { b.editSites(append(collect(), sites.Link{})) }), p.Expanded(p.Box()), b.action("Save", true, func() {
 			filename, err := sites.DefaultPath()
@@ -130,7 +145,22 @@ func (b *browser) editSites(draft []sites.Link) {
 				return
 			}
 			b.loadSites()
-			b.status.Set("Sites saved")
+			b.status.Set("Manual links saved")
 			b.rebuild()
 		})).Gap(8))
+}
+
+// Only explicit HTTP(S) interface metadata becomes a menu entry. Legacy raw
+// tunnel permissions are not evidence that a web service exists at that port.
+func interfaceLinks(cfg *config.Config) []sites.Link {
+	if cfg == nil {
+		return nil
+	}
+	var links []sites.Link
+	for _, t := range cfg.Tunnels {
+		if t.IsInterface() {
+			links = append(links, sites.Link{Name: t.Name, URL: t.URL(), HostHeader: t.HostHeader})
+		}
+	}
+	return links
 }

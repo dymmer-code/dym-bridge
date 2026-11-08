@@ -10,14 +10,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/dymmer-code/dym-bridge/pkg/config"
 )
 
 type Link struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	HostHeader string `json:"host_header,omitempty"`
+	Name       string `json:"name"`
+	URL        string `json:"url"`
 }
 
 func Validate(link Link) (Link, error) {
+	if link.HostHeader != "" && !config.ValidHTTPHost(link.HostHeader) {
+		return link, fmt.Errorf("Invalid HTTP host header")
+	}
 	link.Name = strings.TrimSpace(link.Name)
 	link.URL = strings.TrimSpace(link.URL)
 	if link.Name == "" {

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/dymmer-code/dym-bridge/pkg/config"
 )
 
 // SupportedVersion is the version of the provisioning file this application understands.
@@ -21,10 +23,7 @@ type HostKey struct {
 }
 
 // Tunnel is a local-only destination on the host that may be reached through the SSH connection.
-type Tunnel struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-}
+type Tunnel = config.Tunnel
 
 // Resource is one place the user may enter: a host, with the system user and the path they were given.
 type Resource struct {
