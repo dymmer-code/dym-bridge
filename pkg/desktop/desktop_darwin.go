@@ -3,11 +3,23 @@
 package desktop
 
 import (
+	_ "embed"
+	"encoding/base64"
 	"fmt"
 	"github.com/dymmer-code/dym-bridge/pkg/callback"
 	"github.com/go-webgpu/goffi/ffi"
 	"strings"
 )
+
+//go:embed tray-macos.png
+var macTrayIcon []byte
+
+// newTrayImage returns an owned 18-point image with a 2x Retina representation.
+func newTrayImage() uintptr {
+	data := send(send(cls("NSData"), "alloc"), "initWithBase64EncodedString:options:", str(base64.StdEncoding.EncodeToString(macTrayIcon)), uintptr(0))
+	defer send(data, "release")
+	return send(send(cls("NSImage"), "alloc"), "initWithData:", data)
+}
 
 // Install runs on the Cocoa thread after the window exists. The retained handler
 // survives for the application lifetime; Apple events never replace its delegate.
@@ -52,11 +64,20 @@ func Install(a Actions) (func(), bool, error) {
 	handler := send(send(handlerClass, "alloc"), "init")
 	events := send(cls("NSAppleEventManager"), "sharedAppleEventManager")
 	send(events, "setEventHandler:andSelector:forEventClass:andEventID:", handler, sel("handleURL:reply:"), uint32(0x4755524c), uint32(0x4755524c))
+	image := newTrayImage()
+	if image == 0 {
+		send(events, "removeEventHandlerForEventClass:andEventID:", uint32(0x4755524c), uint32(0x4755524c))
+		send(handler, "release")
+		return nil, false, fmt.Errorf("Could not load tray icon")
+	}
+	defer send(image, "release")
 	bar := send(cls("NSStatusBar"), "systemStatusBar")
-	item := send(bar, "statusItemWithLength:", float64(-1))
+	item := send(bar, "statusItemWithLength:", float64(-2))
 	send(item, "retain")
 	button := send(item, "button")
-	send(button, "setTitle:", str("Dym Bridge"))
+	send(button, "setImage:", image)
+	send(button, "setImagePosition:", uintptr(1))
+	send(button, "setAccessibilityLabel:", str("Dym Bridge"))
 	send(button, "setToolTip:", str("Dym Bridge — secure files and sites"))
 	menu := send(send(cls("NSMenu"), "alloc"), "initWithTitle:", str("Dym Bridge"))
 	for _, entry := range []struct{ title, selector string }{{"Open Dym Bridge", "openBridge:"}, {"Sites…", "sitesBridge:"}, {"Connect / Reconnect", "connectBridge:"}, {"Disconnect", "disconnectBridge:"}, {"Quit Dym Bridge", "quitBridge:"}} {
