@@ -18,7 +18,9 @@ var macTrayIcon []byte
 func newTrayImage() uintptr {
 	data := send(send(cls("NSData"), "alloc"), "initWithBase64EncodedString:options:", str(base64.StdEncoding.EncodeToString(macTrayIcon)), uintptr(0))
 	defer send(data, "release")
-	return send(send(cls("NSImage"), "alloc"), "initWithData:", data)
+	image := send(send(cls("NSImage"), "alloc"), "initWithData:", data)
+	send(image, "setTemplate:", uintptr(1))
+	return image
 }
 
 // Install runs on the Cocoa thread after the window exists. The retained handler
