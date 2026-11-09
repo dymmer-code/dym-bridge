@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -96,7 +97,7 @@ func testDesktopSignIn(t *testing.T, master string) {
 		t.Fatal("incorrect private key storage")
 	}
 	info, _ := os.Stat(b.profilesFile)
-	if info.Mode().Perm() != 0600 {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Fatal("profile must be private")
 	}
 	if _, err := os.Stat(b.callbackFile); !os.IsNotExist(err) {
