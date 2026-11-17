@@ -9,9 +9,11 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   build:
+    environment: release
     strategy:
       fail-fast: false
       matrix:
@@ -117,6 +119,61 @@ jobs:
           rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/AuthKey.p8"
           security delete-keychain "$KEYCHAIN"
           ls -l dist
+      - name: Check Azure signing configuration (Windows)
+        if: matrix.goos == 'windows'
+        id: azure_signing
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ secrets.AZURE_SIGNING_PROFILE }}
+        run: |
+          if [ -z "${AZURE_CLIENT_ID}" ] || [ -z "${AZURE_TENANT_ID}" ] || [ -z "${AZURE_SUBSCRIPTION_ID}" ] || [ -z "${AZURE_SIGNING_ENDPOINT}" ] || [ -z "${AZURE_SIGNING_ACCOUNT}" ] || [ -z "${AZURE_SIGNING_PROFILE}" ]; then
+            echo "::warning::No Azure signing secrets: dym-bridge.exe is NOT signed"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+            case "$VERSION" in v*) ;; *) VERSION="v0.0.0-test" ;; esac
+            NAME="dym-bridge_${VERSION#v}_windows_${{ matrix.goarch }}"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "stage_dir=stage/${NAME}" >> "$GITHUB_OUTPUT"
+            echo "zip_path=dist/${NAME}.zip" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Azure login (OIDC)
+        if: matrix.goos == 'windows' && steps.azure_signing.outputs.enabled == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign Windows executable (Azure Artifact Signing)
+        if: matrix.goos == 'windows' && steps.azure_signing.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}/${{ steps.azure_signing.outputs.stage_dir }}
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+      - name: Verify signature and repack archive (Windows)
+        if: matrix.goos == 'windows' && steps.azure_signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $exe = "${{ steps.azure_signing.outputs.stage_dir }}/dym-bridge.exe"
+          $sig = Get-AuthenticodeSignature $exe
+          if ($sig.Status -ne 'Valid') {
+            throw "Authenticode signature check failed for ${exe}: $($sig.Status) - $($sig.StatusMessage)"
+          }
+          Remove-Item -Force "${{ steps.azure_signing.outputs.zip_path }}"
+          Push-Location stage
+          7z a -tzip "../${{ steps.azure_signing.outputs.zip_path }}" (Split-Path -Leaf "${{ steps.azure_signing.outputs.stage_dir }}")
+          Pop-Location
       - uses: actions/upload-artifact@v4
         with:
           name: dist-${{ matrix.goos }}-${{ matrix.goarch }}
